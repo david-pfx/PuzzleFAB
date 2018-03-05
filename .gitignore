@@ -240,3 +240,12 @@ ModelManifest.xml
 
 # FAKE - F# Make
 .fake/
+/Keep/jsonconvert-orig
+/Keep
+/Work/z
+*.diagsession
+/Unity/Library
+*.dll
+/Unity/Temp
+/UnityPlayer/Library
+/UnityPlayer/Temp
