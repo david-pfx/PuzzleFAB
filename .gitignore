@@ -48,7 +48,6 @@ artifacts/
 *_p.c
 *_i.h
 *.ilk
-*.meta
 *.obj
 *.pch
 *.pdb
@@ -246,6 +245,7 @@ ModelManifest.xml
 *.diagsession
 /Unity/Library
 *.dll
+*.dll.meta
 /Unity/Temp
 /UnityPlayer/Library
 /UnityPlayer/Temp

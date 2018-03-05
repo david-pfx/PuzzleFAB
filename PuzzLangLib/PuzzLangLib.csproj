@@ -77,7 +77,7 @@
     <PegGrammar Include="PuzzLangParser.peg" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\Pegasus\Pegasus.Common\Pegasus.Common.csproj">
+    <ProjectReference Include="..\Pegasus.Common\Pegasus.Common.csproj">
       <Project>{1fc19adf-446f-4118-8189-c25aadf12397}</Project>
       <Name>Pegasus.Common</Name>
     </ProjectReference>

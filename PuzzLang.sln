@@ -7,7 +7,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PuzzLangMain", "PuzzLangMai
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PuzzLangTest", "PuzzLangTest\PuzzLangTest.csproj", "{9B6D5ACA-4969-46CF-8449-0160183735E0}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Pegasus.Common", "..\Pegasus\Pegasus.Common\Pegasus.Common.csproj", "{1FC19ADF-446F-4118-8189-C25AADF12397}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Pegasus.Common", "Pegasus.Common\Pegasus.Common.csproj", "{1FC19ADF-446F-4118-8189-C25AADF12397}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PuzzLangLib", "PuzzLangLib\PuzzLangLib.csproj", "{8CEEA3E9-50CF-4FCA-90B3-89190D96D154}"
 EndProject
