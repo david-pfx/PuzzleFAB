@@ -52,39 +52,42 @@ public class InputHandler : MonoBehaviour {
 
   // main and only input processing
   void Update() {
-    if (!_busy) {
-      if (_model.EndLevel) {
-        var newstate = _sm.HandleInput("tick");
-        StartCoroutine(SetState(0.5f, newstate));
-        _busy = true;
-      }  else if (_model.Againing) {
-        var newstate = _sm.HandleInput("tick");
-        StartCoroutine(SetState(_main.Items.AgainInterval, newstate));
-        _busy = true;
-      } else if (Input.anyKeyDown) {
-        foreach (var kvp in _keycodelookup)
-          if (Input.GetKeyDown(kvp.Key)) {
-            var newstate = _sm.HandleInput(kvp.Value);
-            StartCoroutine(SetState(0.1f, newstate));
-            _busy = true;
-            break;
-          }
-      }
+    if (_busy) return;
+    if (Input.anyKeyDown) {
+      foreach (var kvp in _keycodelookup)
+        if (Input.GetKeyDown(kvp.Key)) {
+          State = _sm.HandleInput(kvp.Value);
+          break;
+        }
     }
   }
 
-  IEnumerator SetState(float defertime, GameState state) {
+  // coroutine to provide input after a delay, and update status directly
+  IEnumerator DeferInput(float defertime, string input) {
+    _busy = true;
     yield return new WaitForSeconds(defertime);
-    State = state;
     _busy = false;
+    State = _sm.HandleInput(input);
   }
+
+  ///---------------------------------------------------------------------------
+  ///
+  /// Handlers are called by the state machine and must return a new state
+  /// 
 
   // handler
   internal GameState AcceptInput() {
-    _model.AcceptInputs(_sm.CurrentInput);
-    _itemmx.ShowLog();
-    _main.PlaySounds(_model.Sounds);
-    return CheckModel();
+    if (_model.EndLevel) _main.ClearScript();
+    _main.AcceptInput(_sm.CurrentInput);
+    var newstate = CheckModel();
+    if (_model.EndLevel) {
+      Util.Trace(2, "Endlevel defer {0}", 0.5f);
+      StartCoroutine(DeferInput(0.5f, "tick"));
+    } else if (_model.Againing) {
+      Util.Trace(2, "Againing defer {0}", _main.Items.AgainInterval);
+      StartCoroutine(DeferInput(_main.Items.AgainInterval, "tick"));
+    }
+    return newstate;
   }
 
   // handler
@@ -92,18 +95,8 @@ public class InputHandler : MonoBehaviour {
     return !_model.Ok ? GameState.Error
       : _model.GameOver ? GameState.GameOver
       : _model.InLevel ? GameState.Level
-      : _model.EndLevel ? GameState.EndLevel
       : _model.InMessage ? GameState.Message
       : GameState.None;
-  }
-
-  // handler
-  internal GameState NextLevel() {
-    _model.AcceptInputs("tick");
-    _itemmx.ShowLog();
-    _main.PlaySounds(_model.Sounds);
-    _main.NewLevel();
-    return CheckModel();
   }
 
   // handler
@@ -151,7 +144,7 @@ class StateMachine {
     new Transition(GameState.Intro, "quit", t => GameState.Quit),
     new Transition(GameState.Level, "left,right,up,down,action,undo,restart,tick", t => t.AcceptInput()),
     new Transition(GameState.Level, "escape", t => GameState.Pause),
-    new Transition(GameState.EndLevel, "tick", t => t.NextLevel()),
+    //new Transition(GameState.EndLevel, "tick", t => t.NextLevel()),
     new Transition(GameState.Message, "action", t => t.AcceptInput()),
     new Transition(GameState.Message, "escape", t => GameState.Pause),
     new Transition(GameState.Pause, "action", t => t.CheckModel()),
@@ -160,14 +153,18 @@ class StateMachine {
     new Transition(GameState.Pause, "quit", t => GameState.Quit),
     new Transition(GameState.Pause, "up", t => t.ChangeLevel(1)),
     new Transition(GameState.Pause, "down", t => t.ChangeLevel(-1)),
-    new Transition(GameState.Error, "quit", t => GameState.Quit),
     new Transition(GameState.Error, "select", t => GameState.Select),
+    new Transition(GameState.Error, "quit", t => GameState.Quit),
     new Transition(GameState.GameOver, "action", t => t._main.ReloadScript(false)),
     new Transition(GameState.GameOver, "select", t => GameState.Select),
     new Transition(GameState.GameOver, "escape", t => GameState.Pause),
     new Transition(GameState.GameOver, "quit", t => GameState.Quit),
     new Transition(GameState.Select, "action", t =>t._main.LoadScript(t.GetSelection())),
+    new Transition(GameState.Select, "right", t => GameState.Gist),
     new Transition(GameState.Select, "escape", t => GameState.Pause),
+    new Transition(GameState.Gist, "action", t =>t._main.LoadScript(t.GetSelection())),
+    new Transition(GameState.Gist, "left", t => GameState.Select),
+    new Transition(GameState.Gist, "escape", t => GameState.Pause),
   };
 
   InputHandler  _handler ;

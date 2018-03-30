@@ -239,6 +239,8 @@ ModelManifest.xml
 
 # FAKE - F# Make
 .fake/
+
+# Puzzlang
 /Keep/jsonconvert-orig
 /Keep
 /Work/z

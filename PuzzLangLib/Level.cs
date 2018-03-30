@@ -64,8 +64,6 @@ namespace PuzzLangLib {
     internal bool IsLocation(int x, int y) {
       return x >= 0 && x < Width && y >= 0 && y < Height;
     }
-    //internal int GetX(int location) { return location % Width; }
-    //internal int GetY(int location) { return location / Width; }
 
     internal Dictionary<Locator, int> _changes = new Dictionary<Locator, int>();
     int[,] _locations;

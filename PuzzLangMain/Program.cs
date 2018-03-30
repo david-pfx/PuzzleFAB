@@ -13,6 +13,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Text.RegularExpressions;
 using DOLE;
 using PuzzLangLib;
@@ -31,12 +32,16 @@ namespace PuzzLangMain {
     static string _jconvert = null; // converted files go into this directory
     static string _jctest = null; // converted files from this directory
     static string _gist = null;
+    static string _gconvert = null;
     static int _take = 9999;
     static bool _jtarray = false;
     static bool _jtsingle = false;
     static bool _static = false;
     static string _xpath = null;
     static List<Pair<string, string>> _settings = new List<Pair<string, string>>();
+    static Encoding _encoding = Encoding.UTF8;
+    static bool _timing;
+    static string _skip = "62,32";    // default unless overridden
     static bool _xdebug = false;
 
     static readonly Dictionary<string, Action<string>> _options
@@ -45,16 +50,19 @@ namespace PuzzLangMain {
         { "filter",   (a) => { _filter = a; } },
         { "hack",     (a) => { _hack = a; } },
         { "gist",     (a) => { _gist = a ?? "0ebbe5e1f0761a87cc7aeace0d5e4b8e"; } },
+        { "gconvert", (a) => { _gconvert = a ?? "gistconvert"; } },
         { "inputs",   (a) => { _inputs = a ?? "tick"; } },
         { "jtarray",  (a) => { _jtarray = true; } },
         { "jtsingle", (a) => { _jtsingle = true; } },
         { "jconvert", (a) => { _jconvert = a ?? "jsonconvert"; } },
         { "jctest",   (a) => { _jctest = a ?? "jsonconvert"; } },
+        { "skip",     (a) => { _skip = a; } },
         { "level",    (a) => { _startlevel = a; } },
         { "static",   (a) => { _static = true; } },
         { "take",     (a) => { _take = a.SafeIntParse() ?? 9999; } },
         { "debug",    (a) => { _settings.Add(Pair.Create("debug","true")); } },
         { "verbose",  (a) => { _settings.Add(Pair.Create("verbose_logging","true")); } },
+        { "timing",   (a) => {  _timing = true; _settings.Add(Pair.Create("statistics_logging","true")); } },
         { "again",    (a) => { _settings.Add(Pair.Create("pause_on_again","true")); } },
         { "endlevel", (a) => { _settings.Add(Pair.Create("pause_at_end_level","true")); } },
         { "xdebug",   (a) => { _xdebug = true; } },
@@ -70,13 +78,33 @@ namespace PuzzLangMain {
 
       // trigger options here to avoid having to change debug conditions
       if (_xdebug) {
-        options.Parse(new string[] { "/jta", "testdata.json", "/f=by your side", "/0" });
+        options.Parse(new string[] { @".\testgames\ellipsisnodup.txt", "/403", "/input=right", "/endl" });
+        //options.Parse(new string[] { @".\jsonconvert\117-Rigidbody fix bug #246.txt", "/201", "/input=up,up" });
+        //options.Parse(new string[] { "/3", "/input=action,right,right,left,right" });
+        //options.Parse(new string[] { "/jct", "/0" });
+        //options.Parse(new string[] { @".\demo\collapse.txt", "/403", "/lev=3", "/input=up,right,right,right" });
+        //options.Parse(new string[] { @".\testgames\rigid.txt", "/3", "/input=right,right,right,down,right", "/endl" });
+        //options.Parse(new string[] { @".\testgames\ellipsisdrag.txt", "/403", "/input=right", "/endl" });
+        //options.Parse(new string[] { @".\testgames\ellipsisfill.txt", "/403", "/input=right", "/endl" });
+        //options.Parse(new string[] { @".\demo\tiny treasure hunt.txt", "/2", "/input=action,action,action", "/endl" });
+        //options.Parse(new string[] { @".\demo\microban.txt", "/2", "/input=action,action,action", "/endl" });
+        //options.Parse(new string[] { @".\demo\dropswap.txt", "/2", "/input=action,action,action", "/endl" });
+        //options.Parse(new string[] { @"randwater.txt", "/2", "/input=left", "/tim"  });
+        //options.Parse(new string[] { @"rose.txt", "/1", "/input=action", "/tim"  });
+        //options.Parse(new string[] { @".\demo\byyourside.txt", "/2", "/input=action", "/endl" });
+        //options.Parse(new string[] { @".\demo\atlas shrank.txt", "/2", "/input=action", "/endl" });
+        //options.Parse(new string[] { @".\gistrename\vertebrae.txt", "/2", "/input=action,tick,input=action,tick" });
+        //options.Parse(new string[] { @".\gistrename\watch your step.txt", "/2", "/input=action,tick,input=action,tick" });
+        //options.Parse(new string[] { "/gcon", "/2" });
+        //options.Parse(new string[] { "/gist", "/2" });
+        //options.Parse(new string[] { @".\demo\cratopia.txt", "/301", "/input=action,action,right,left" });
+        //options.Parse(new string[] { @".\demo\whaleworld.txt", "/301", "/input=action,up" });
+        //options.Parse(new string[] { "/jta", "testdata.json", "/f=by your side", "/0" });
         //options.Parse(new string[] { "/302", "/input=right,right,right,right" });
         //options.Parse(new string[] { "/jta", "testdata.json", "/f=drop swap", "/0" });
         //options.Parse(new string[] { "/deb", "/input=right,right" });
-        //options.Parse(new string[] { @"..\demo\cratopia.txt", "/301", "/input=action,action,right" });
-        //options.Parse(new string[] { "SimpleBlockPushing.txt", "/301", "/input=action,right" });
         //options.Parse(new string[] { "/jta", "testdata.json", "/f=whale", "/0" });
+        //options.Parse(new string[] { "SimpleBlockPushing.txt", "/301", "/input=action,right" });
         //options.Parse(new string[] { "/jts", "testcase.json", "/3" });
         //Logger.Level = 301;
         //_inputs = "right,right";
@@ -113,6 +141,10 @@ namespace PuzzLangMain {
             RunJsonConvTest(file);
       } else if (_gist != null) {
         RunGist(_gist);
+      } else if (_gconvert != null) {
+        foreach (var filename in options.GetPathnames(_xpath ?? "gists.txt")
+          .Where(p => p.ToLower().Contains(_filter)))
+          RunGistConvert(filename, _gconvert);
 
         //--- static test data cases -----------------------------------------------
       } else if (_static) {
@@ -135,36 +167,61 @@ namespace PuzzLangMain {
       }
     }
 
-    private static string ReadFile(string path) {
+    static IList<string> ReadLines(string path) {
+      var reader = new StringReader(path);
+      var lines = new List<string>();
+      var line = reader.ReadLine();
+      while (line != null) {
+        lines.Add(line);
+        line = reader.ReadLine();
+      }
+      return lines;
+    }
+
+    static string ReadFile(string path) {
       if (path == "--") {
         if (Console.IsInputRedirected)
-          using (var rdr = new StreamReader(Console.OpenStandardInput()))
+          using (var rdr = new StreamReader(Console.OpenStandardInput(), _encoding))
             return rdr.ReadToEnd();
         _output.WriteLine($"*** Console not redirected!");
         return null;
       }
-      using (var rdr = new StreamReader(path))
+      using (var rdr = new StreamReader(path, _encoding))
         return rdr.ReadToEnd();
     }
 
     static void RunGist(string gist) {
-      var regex = new Regex("[0-9a-z]{32}");
-      var match = regex.Match(gist);
-      if (!match.Success)
+      var gistid = GistAccess.ExtractGist(gist);
+      if (gistid == null)
         _output.WriteLine("*** invalid gist id: '{0}'", gist);
       else {
-        _output.WriteLine("Loading gist: '{0}'", match.Value);
-        var script = GistAccess.Load(match.Value);
+        _output.WriteLine("Loading gist: '{0}'", gistid);
+        var script = GistAccess.Load(gistid);
         if (script == null)
           _output.WriteLine("*** gist not found: '{0}'", gist);
         else RunScript($"Gist: {_gist}", script, _inputs, _startlevel);
       }
     }
 
+    static void RunGistConvert(string listname, string dir) {
+      _output.WriteLine($"Converting gists: '{listname}' to '{dir}'");
+      if (!Directory.Exists(dir))
+        Directory.CreateDirectory(dir);
+      foreach (var line in ReadLines(ReadFile(listname))) {
+        var gistid = GistAccess.ExtractGist(line);
+        if (gistid == null)
+          _output.WriteLine("*** invalid gist id: '{0}'", line);
+        else {
+          var script = GistAccess.Load(gistid);
+          var outpath = Path.Combine(dir, gistid + ".txt");
+          using (var sw = new StreamWriter(outpath))
+            sw.Write(script);
+        }
+      }
+    }
+
     // run a single converted JSON test
     static void RunJsonConvTest(string path) {
-      //if (_xdebug) Logger.Level = 202;
-      //if (_xdebug) _filter = "035";
 
       var title = "";
       var finalstate = "";
@@ -175,6 +232,7 @@ namespace PuzzLangMain {
         { "Final state: ",  s=> finalstate = s.Replace(";", "\n") },
       };
       _output.WriteLine($"Json conv test: '{path}'.");
+      var counter = Path.GetFileName(path).Left(3).SafeIntParse() ?? 0;
       var script = File.ReadAllText(path) + "\r\n";
 
       // scan the script looking for test params
@@ -187,7 +245,7 @@ namespace PuzzLangMain {
           line = rdr.ReadLine();
         }
       }
-      RunJsonTest(title, script, _inputs, _startlevel, finalstate);
+      RunJsonTest(title, script, _inputs, _startlevel, finalstate, counter);
     }
 
     // expand one piece of JSON into a set of converted test cases in a directory, create if needed
@@ -212,9 +270,6 @@ namespace PuzzLangMain {
 
     // run all the tests in one piece of JSON 
     static void RunJsonTests(string sourcename, string json) {
-      //if (_xdebug) _filter = "test testing";
-      //if (_xdebug) Logger.Level = 200;
-      //if (_xdebug) Logger.Level = 302;
       _output.WriteLine($"Run JSON test: '{sourcename}'");
 
       JsonTestData.Setup(json);
@@ -231,9 +286,6 @@ namespace PuzzLangMain {
 
     // run the testcase in one piece of JSON 
     static void RunJsonTestCase(string sourcename, string json) {
-      //if (_xdebug) _inputs = "";
-      //if (_xdebug) Logger.Level = 3;
-      //if (_xdebug) Logger.Level = 302;
       _output.WriteLine($"Run JSON test: '{sourcename}'");
 
       JsonTestData.SetupSingle(json);
@@ -252,19 +304,22 @@ namespace PuzzLangMain {
       _output.WriteLine("\n{0}: '{1}' inputs:{2} target:{3}",
         counter, title, inputs?.SplitTrim().Count, startlevel);
 
-      var skipset = new HashSet<int> { 62, 74, 87 };
-
+      script = script.Replace("verbose_logging", "(verbose_logging)").Replace("debug", "(debug)");
+      if (_timing) Logger.WriteLine(">>>Start");
       var compiler = Compiler.Compile(title, new StringReader(script), Console.Out, _settings);
       if (compiler.Success) {
-        if (skipset.Contains(counter)) Logger.WriteLine(">Skipped!");
+        if (_skip.Split(',').Contains(counter.ToString())) Logger.WriteLine(">{0} Skipped!", counter);
         else {
           Logger.Pop();
-          compiler.Model.Execute(startlevel, inputs);
+          if (_timing) Logger.WriteLine(">>>Execute");
+          var ok = compiler.Model.Execute(startlevel, inputs);
+          if (_timing) Logger.WriteLine(">>>Done");
           var last = compiler.EncodeLevel(compiler.Model.LastLevel);
           var matched = (last == finalstate);
-          if (matched) Logger.WriteLine(">Passed.");
+          if (!ok) Logger.WriteLine(">{0} FAILED.", counter);
+          else if (matched) Logger.WriteLine(">{0} Passed.", counter);
           else {
-            Logger.WriteLine(">'{0}' error: final state MISMATCH!", title);
+            Logger.WriteLine(">{0} final state MISMATCH!", counter);
             var first = compiler.EncodeLevel(compiler.Model.FirstLevel);
             if (Logger.Level >= 2) compiler.Model.ShowLevel("json");
             Logger.WriteLine(2, "First:\n{0}", first);
@@ -280,7 +335,9 @@ namespace PuzzLangMain {
 
     static void RunScript(string sourcename, string script, string inputs = "", string startlevel = "0") {
       _output.WriteLine($"Compiling script {sourcename}");
+      script = script.Replace("verbose_logging", "(verbose_logging)").Replace("debug", "(debug)");
       var reader = new StringReader(script);
+      if (_timing) Logger.WriteLine(">>>Start");
       var compiler = Compiler.Compile(sourcename, reader, Console.Out, _settings);
       if (compiler.Success) {
         var model = compiler.Model;
@@ -288,8 +345,10 @@ namespace PuzzLangMain {
           model.GameDef.GetColour(OptionSetting.text_color, 0xffffff),
           model.GameDef.GetColour(OptionSetting.background_color, 0));
         Logger.Pop();
-        Logger.WriteLine(1, $"Running '{sourcename}' level={startlevel} inputs={inputs}");
+        Logger.WriteLine(1, $"Running '{sourcename}' level={startlevel} inputs={inputs} log={Logger.Level}");
+        if (_timing) Logger.WriteLine(">>>Execute");
         model.Execute(startlevel, inputs);
+        if (_timing) Logger.WriteLine(">>>Done");
         Logger.WriteLine(3, "Sounds: '{0}'", model.Sounds.Join());
         if (_encodelevel) {
           var last = compiler.EncodeLevel(compiler.Model.LastLevel);

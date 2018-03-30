@@ -72,27 +72,25 @@ CollisionLine
 RuleSection = RULES ( EOLC* !MARKER RuleLine )*
 RuleLine 
     = WSC v:RULELOOP EOLX { Loop(state,v) }
-    / WSC v:RulePref* w:RuleSeq* RAexp x:RuleSeq* y:RuleEnd* EOLX { DefRule(state,v,w,x,y) }
+    / WSC v:RulePrefixIdent* w:RuleSeq* RAexp x:RuleSeq* y:RuleEnd* EOLX { DefRule(state,v,w,x,y) }
+    / WSC v:Ident #error{ $"expected move prefix or direction: {v}" }
 RuleSeq<SubRule>
-    = WSC LB w:RuleCell<0,,WSC VB> RBexp { DefSubRule(null,w) }
-RulePref
-    = RulePrefixIdent
-    / RuleDirectionIdent
-    / v:Ident #error{ $"expected move prefix or direction: {v}" }
+    = WSC v:RuleDirectionIdent* LB w:RuleCell<0,,WSC VB> RBexp { DefSubRule(v,w) }
+    / WSC v:RuleDirectionIdent #error{ $"expected direction or left bracket: {v}" }
 RuleCell<IList<RuleAtom>>
     = ELLIP             { DefRuleCell("...") }  //  must be first
     / WSC v:RuleMatch+  { v }
     / WSC &( VB / RB )  { DefRuleCell(null) }
+    / #error{ $"object or command expected" }   // no backtrack, already accepted LB
 RuleMatch<RuleAtom>
     = v:NO? w:MoveDirectionIdent x:RuleObject y:CommandIdent?  { DefRuleCell(Single(v),w,x,Single(y)) }
     / NO? MoveDirectionIdent #error{ $"object expected" }
     / v:NO? x:RuleObject y:CommandIdent?                       { DefRuleCell(Single(v),null,x,Single(y)) }
     / v:NO? y:CommandIdent                                  { DefRuleCell(Single(v),null,null,y) }
-    / !( VB / RB ) NO? #error{ $"object or command expected" }
 RuleEnd
     = v:MESSAGE w:AnyText? { $"?{Single(w)}" }
     / CommandIdent
-    / v:Ident #error{ $"move command expected: {v}" }
+    / Ident #error{ $"move command expected" }        // no backtrack, accepted RA
 RuleObject = !LB !VB !RB !RA v:Defined { v }
 RAexp = RA / #error{ "right arrow expected" }
 RBexp = RB / #error{ "right bracket expected" }
@@ -160,8 +158,8 @@ IDX = !IdChar SP* { "" }            // end of ident possibly followed by WS (dis
 //CommentInline = SP* "//" (!CC .)*
 CommentBlock = SP* LP ( !RP ( &LP CommentBlock / . ) )* RP
 MARKER = "===" "="* EOLW
-WSC = CommentBlock? SP* { "" }      // wherever optional whitespace permitted (discarded)
-EOLC = CommentBlock? EOLW { "" }    // end of line, comment allowed (discarded)
+WSC = CommentBlock* SP* { "" }      // wherever optional whitespace permitted (discarded)
+EOLC = CommentBlock* EOLW { "" }    // end of line, comment allowed (discarded)
 EOLW = SP* CR? LF { Eol(state) }    // end of line, comment not allowed (discarded)
 
 
@@ -172,7 +170,7 @@ Digit = [0-9];
 HexDigit = [a-fA-F0-9];
 SpriteChar = [.0-9] 
 IdCharX = [_$];
-LEVELCHAR = [\x21-\xfe]
+LEVELCHAR = [\x21-\xfe\u0100-\uffff]
 
 EQ = "=" WSO
 LP = "(" WSO

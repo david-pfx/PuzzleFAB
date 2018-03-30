@@ -35,6 +35,8 @@ namespace PuzzLangLib {
     TestOMN,    // Test moving set of objects at location
     ScanODN,    // Scan set of objects from location
     ScanOMDN,   // Scan moving set of objects from location
+    CheckON,    // Check objects at index
+    CheckOMN,   // Check moving objects at index
     CreateO,    // Create object at index
     DestroyO,   // Destroy object at index
     MoveOM,     // Set object movement at index
@@ -53,6 +55,10 @@ namespace PuzzLangLib {
     internal void Add(IEnumerable<int> ints) {
       Code.Add(ints.Count());
       foreach (var x in ints) Code.Add(x);
+    }
+
+    public override string ToString() {
+      return "{{{0}}}".Fmt(Code.Count);
     }
   }
 
@@ -125,21 +131,23 @@ namespace PuzzLangLib {
         case Opcodes.TrailX:
           sw.Write(_gcode.Code[_gpc++]);
           break;
-        case Opcodes.CreateO:
         case Opcodes.DestroyO:
           sw.Write("objs: {0}", DecodeSet());
           break;
         case Opcodes.FindO:
         case Opcodes.TestON:
+        case Opcodes.CheckON:
           sw.Write("objs: {0} {1}", DecodeSet(), (MatchOperator)_gcode.Code[_gpc++]);
           break;
-        case Opcodes.FindOM:
         case Opcodes.MoveOM:
         case Opcodes.RMoveOM:
+        case Opcodes.CreateO:
           sw.Write("objs: {0} {1}", DecodeSet(), (Direction)_gcode.Code[_gpc++]);
           break;
+        case Opcodes.FindOM:
         case Opcodes.ScanODN:
         case Opcodes.TestOMN:
+        case Opcodes.CheckOMN:
           sw.Write("objs: {0} step:{1} {2}", DecodeSet(), (Direction)_gcode.Code[_gpc++], (MatchOperator)_gcode.Code[_gpc++]);
           break;
         case Opcodes.ScanOMDN:

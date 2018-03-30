@@ -17,11 +17,13 @@ using PuzzLangLib;
 
 public class BoardView : MonoBehaviour {
   public Vector3 Location;
+  public GameObject TilePrefab;
 
+  GameModel _model { get { return _main.Model; } }
   MainController _main;
   SpriteRenderer _renderer;
+  List<GameObject> _knownobjects = new List<GameObject>();
 
-  // Use this for initialization
   void Start() {
     _main = FindObjectOfType<MainController>();
     // set size to cover given area
@@ -35,7 +37,6 @@ public class BoardView : MonoBehaviour {
   void Update() {
     switch (_main.GameState) {
     case GameState.Level:
-    case GameState.EndLevel:
       SetVisible(true);
       break;
     default:
@@ -52,5 +53,36 @@ public class BoardView : MonoBehaviour {
       _visible = visible;
     }
   }
+
+  internal void CreateTiles(Vector3Int layout, float scale, int levelwidth, GameObject tileprefab) {
+    // create same order as level, from top left back
+    var origin = new Vector3(-layout.x / 2.0f + 0.5f, -layout.y / 2.0f + 0.5f, 0f) * scale;
+    var levelindex = 0;
+    for (int y = layout.y - 1; y >= 0; --y) {
+      for (int x = 0; x < layout.x; x++) {
+        for (int z = 1; z <= layout.z; z++) {
+          var tile = Instantiate(tileprefab);
+          var tileview = tile.GetComponent<TileView>();
+          tileview.Location = new Vector3(origin.x + scale * x, origin.y + scale * y, origin.z - z / 10.0f);
+          tileview.Size = new Vector2(scale, scale);
+          tileview.LevelIndex = new Vector2Int(levelindex + x, z);
+          _knownobjects.Add(tile);
+        }
+      }
+      levelindex += levelwidth;
+    }
+    Util.Trace(1, ">[CT done {0}]", layout.x * layout.y * layout.z);
+  }
+
+  // destroy board and all objects on it
+  internal void DestroyTiles() {
+    if (_knownobjects.Count > 0) {
+      Util.Trace(1, "Destroy board count={0}", _knownobjects.Count);
+      foreach (var obj in _knownobjects)
+        Destroy(obj);
+      _knownobjects.Clear();
+    }
+  }
+
 
 }

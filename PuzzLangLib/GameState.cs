@@ -19,24 +19,59 @@ namespace PuzzLangLib {
   /// <summary>
   /// Action to take after processing rules
   /// </summary>
-  internal enum StateAction {
-    None, Cancel, Restart, Win, Checkpoint
-
+  internal enum StateResult {
+    None, Cancel, Restart, Undo, Finished, Againing,
+    Success,
   }
 
   /// <summary>
   /// Current state of game after zero or more inputs
   /// </summary>
   class GameState {
+    // status of this game state
+    internal StateResult Result { get { return _result; } }
     internal Level Level { get { return _level; } }
-    internal bool Finished { get; private set; }
+    internal bool IsAgaining { get { return _result == StateResult.Againing; } }
+    internal bool IsFinished { get { return _result == StateResult.Finished; } }
     internal int AgainCount { get; set; }
-    internal bool Undo { get; private set; }
     internal int MoveNumber { get { return _moveno; } }
     internal IEnumerable<string> Sounds { get { return _rulestate.Sounds; } }
+    internal string Message { get { return _rulestate.Message; } }
+    internal IList<int> PlayerIndexes { get { return _playerindexes; } }
+    internal int ScreenIndex { get; private set; }
+
+    internal int LostRuleCounter { get; private set; }
+    internal int EarlyRuleCounter { get; private set; }
+    internal int TotalRuleCounter { get; private set; }
+    internal int MoveCounter { get; private set; }
+    internal int ActionCounter { get; private set; }
+    internal int CommandCounter { get; private set; }
 
     GameDef _gamedef { get { return _model._gamedef; } }
 
+    static readonly Dictionary<RuleCommand, StateResult> _commandresultlookup = new Dictionary<RuleCommand, StateResult>() {
+      { RuleCommand.Cancel, StateResult.Cancel    },
+      { RuleCommand.Win,    StateResult.Finished  },
+      { RuleCommand.Restart,StateResult.Restart   },
+      { RuleCommand.Undo,   StateResult.Undo      },
+      { RuleCommand.Again,  StateResult.Againing  },
+    };
+
+    // columns used by lookup
+    static MatchOperator[] _wincocol = new MatchOperator[] {
+      MatchOperator.All, MatchOperator.Some, MatchOperator.No
+    };
+
+    // Win Condition Lookup
+    static bool?[,] _wincolookup = new bool?[,] {
+      // All   Some    No | All-on Some-on No-on
+      { null,  null,  null,  null,  null,  null  },  // object not found
+      { null,  true,  false, false, null,  null  },  // object found, no target
+      { null,  null,  null,  null,  true,  false },  // object and target found
+      { false, false, true,  true,  false, true  },  // on exit (no nulls)
+    };
+
+    StateResult _result;
     GameModel _model;
     Level _level;
     Direction _input = Direction.None;
@@ -44,17 +79,21 @@ namespace PuzzLangLib {
     int _moveno = 0;
     HashSet<RuleGroup> _disabledgrouplookup = new HashSet<RuleGroup>();
     RuleState _rulestate;         // state as rules are evaluated
+    List<int> _playerindexes;
 
     public override string ToString() {
-      return $"Game<{_moveno},{_input},f={Finished},a={AgainCount},u={Undo}>";
+      return $"Game<{_moveno},{_input},{_result},a={AgainCount}>";
     }
 
     internal static GameState Create(GameModel model, Level level, int moveno) {
-      return new GameState {
+      var gs = new GameState {
         _model = model,             // static data
         _level = level.Clone(),     // initial state of level -- will be updated
         _moveno = moveno,           // just a counter
       };
+      gs._playerindexes = gs.FindPlayers();
+      gs.ScreenIndex = gs.CalcScreenIndex();
+      return gs;
     }
 
     // Compute next game state based on input and rules
@@ -68,37 +107,26 @@ namespace PuzzLangLib {
     // apply input, then rules, then process queued commands and return state to use
     GameState ApplyAll(Direction input) {
       Logger.WriteLine(4, "[ApplyAll {0}]", input);
+      var now1 = DateTime.Now;
       ApplyInput(input);
       ApplyRules();
-      foreach (var command in _rulestate.Commands) {
-        switch (command) {
-        case RuleCommand.Again:
-          _rulestate.CheckTrigger(SoundTrigger.Again);
-          AgainCount++;
+      _playerindexes = FindPlayers();
+      ScreenIndex = CalcScreenIndex();
+
+      // check commands in order of priority
+      _result = StateResult.Success;
+      foreach (var command in _commandresultlookup.Keys) {
+        if (_rulestate.Commands.Contains(command)) {
+          _result = _commandresultlookup[command];
           break;
-        case RuleCommand.Cancel:
-          _rulestate.CheckTrigger(SoundTrigger.Cancel);
-          return this;
-        case RuleCommand.Checkpoint:
-          _model.SetCheckpoint(_rulestate.CheckPoint);
-          _rulestate.CheckTrigger(SoundTrigger.Checkpoint);
-          break;
-        case RuleCommand.Restart:
-          _rulestate.CheckTrigger(SoundTrigger.Restart);
-          _model.Restart(this);
-          return null;
-        case RuleCommand.Undo:
-          _rulestate.CheckTrigger(SoundTrigger.Undo);
-          Undo = true;
-          break;
-        case RuleCommand.Win:
-          _rulestate.CheckTrigger(SoundTrigger.Win);
-          Finished = true;
-          break;
-        default:
-          throw Error.Assert("bad command {0}", command);
         }
       }
+      // handle checkpoint, gets discarded by any other command
+      if (_rulestate.Commands.Contains(RuleCommand.Checkpoint)) {
+        _model.SetCheckpoint(_rulestate.CheckPoint);
+        _rulestate.CheckTrigger(SoundTrigger.Checkpoint);
+      }
+      var now2 = DateTime.Now;
       Logger.WriteLine(4, "[AA {0}]", this);
       return this;
     }
@@ -111,8 +139,35 @@ namespace PuzzLangLib {
         foreach (var player in _gamedef.Players)
           foreach (var locator in FindObject(player)) {
             _movers.Add(Mover.Create(player, locator, _input));
-            Logger.WriteLine(2, "Mover add {0} to '{1}' at {2}", _input, _gamedef.GetName(player), locator);
+            Logger.WriteLine(2, "Mover add {0} to {1} at {2}", _input, _gamedef.GetName(player), locator);
           }
+      }
+    }
+
+    // find the location of each player as an ordered list
+    List<int> FindPlayers() {
+      return _gamedef.Players
+        .SelectMany(p => FindObject(p)
+        .Select(l => l.Index))
+        .ToList();
+    }
+
+    // calculate origin for screen as an index into the level
+    int CalcScreenIndex() {
+      var flick = _gamedef.GetSetting(OptionSetting.flickscreen, (Pair<int, int>)null);
+      var zoom = _gamedef.GetSetting(OptionSetting.zoomscreen, (Pair<int, int>)null);
+      if ((flick == null && zoom == null) || PlayerIndexes.Count == 0) return 0;
+      var pindex = PlayerIndexes[0];
+      var width = _level.Width;
+      var height = _level.Height;
+      if (flick != null) {
+        var x = flick.Item1 * (pindex % width / flick.Item1);
+        var y = flick.Item2 * (pindex / width / flick.Item2);
+        return width * y + x;
+      } else {
+        var x = Math.Max(0, Math.Min(width - zoom.Item1, pindex % width - zoom.Item1 / 2));
+        var y = Math.Max(0, Math.Min(height - zoom.Item2, pindex / width - zoom.Item2 / 2));
+        return width * y + x;
       }
     }
 
@@ -126,7 +181,7 @@ namespace PuzzLangLib {
       var originallevel = _level;
 
       // apply early rules and moves, loop until no rigid failure
-      _model.DebugWriteline("Try rules {0}", _gamedef.EarlyRules.Select(r=>r.Id).Join());
+      _model.VerboseLog("Try {0} rules(s)", _gamedef.EarlyRules.Count);
       while (true) {
         _movers = new List<Mover>(originalmovers);
         _level = originallevel.Clone();
@@ -139,22 +194,27 @@ namespace PuzzLangLib {
         var disablecount = _disabledgrouplookup.Count;
         ApplyMoves();
         if (disablecount == _disabledgrouplookup.Count) break;
+        LostRuleCounter += _rulestate.PatternCounter;
       }
+      EarlyRuleCounter += _rulestate.PatternCounter;
 
       // apply late rules
       if (_gamedef.LateRules.Count > 0) {
-        _model.DebugWriteline("Try late rules {0}", _gamedef.LateRules.Select(r => r.Id).Join());
+        _model.VerboseLog("Try {0} late rule(s)", _gamedef.LateRules.Count);
         ApplyRuleGroups(_gamedef.LateRules);
         if (_rulestate.Exit) return;
       }
+      TotalRuleCounter += _rulestate.PatternCounter;
+      ActionCounter += _rulestate.ActionCounter;
+      CommandCounter += _rulestate.CommandCounter;
 
       // figure out command to return
       var haschanged = _level.ChangesCount > 0;
       if (TestWinConditions()) {
-        _model.DebugWriteline("Win conditions satisfied.");
+        _model.VerboseLog("Win conditions satisfied.");
         _rulestate.Commands.Add(RuleCommand.Win);
       } else if (!haschanged && _rulestate.Commands.Contains(RuleCommand.Again)) {
-        _model.DebugWriteline("Again cancelled, no effect.");
+        _model.VerboseLog("Again cancelled, no effect.");
         _rulestate.Commands.Remove(RuleCommand.Again);
       }
 
@@ -221,7 +281,7 @@ namespace PuzzLangLib {
         groupchange = _rulestate.Apply(group.Rules[n]);
 
       // Apply all the rules in the group
-      // loop until no more changes, returnt true if there were any
+      // loop until no more changes, return true if there were any
       } else {
         for (var retry = 0; ; ++retry) {
           if (retry > 200) throw Error.Fatal("too many rule group retries: <{0}>", group);
@@ -252,7 +312,7 @@ namespace PuzzLangLib {
           var dups = _movers.Where(m => Destination(m).Equals(newloc));
           foreach (var dup in dups.Skip(1).ToArray()) {  // avoid modifying collection
             if (NoFailRigid(mover)) return;
-            _model.DebugWriteline("Duplicate move {0} to {1}", mover.Object, mover.Locator.Index);
+            _model.VerboseLog("Blocked duplicate move {0} to {1}", _gamedef.GetName(mover.Object), mover.Locator.Index);
             _movers.Remove(dup);
           }
         }
@@ -271,13 +331,14 @@ namespace PuzzLangLib {
         foreach (var mover in blocked) {
           _level[mover.Locator] = mover.Object;
           if (NoFailRigid(mover)) return;
-          _model.DebugWriteline("Conflicting move {0} to {1}", mover.Object, mover.Locator.Index);
+          Logger.WriteLine(3, "Blocked  move {0} to {1}", _gamedef.GetName(mover.Object), mover.Locator.Index);
           _movers.Remove(mover);
         }
       }
       // 4.Insert movers into level at new location, count it
       if (_movers.Count > 0)
-        _model.DebugWriteline("Make moves: {0}", _movers.Select(m=>_gamedef.GetName(m.Object)).Join());
+        _model.VerboseLog("Make moves: {0}", _movers.Select(m=>_gamedef.GetName(m.Object)).Join());
+      MoveCounter += _movers.Count;
       foreach (var mover in _movers) {
         _level[Destination(mover)] = mover.Object;
         _rulestate.CheckTrigger(mover.Direction == Direction.Action ? SoundTrigger.Action : SoundTrigger.Move, 
@@ -291,7 +352,7 @@ namespace PuzzLangLib {
       var rulegroup = mover.RuleGroup;
       _rulestate.CheckTrigger(SoundTrigger.Cantmove, mover.Object, mover.Direction);
       if (rulegroup == null || !rulegroup.IsRigid) return false;
-      _model.DebugWriteline("Rule group {0} disabled", rulegroup.Id);
+      _model.VerboseLog("Rule group {0} disabled", rulegroup.Id);
       _disabledgrouplookup.Add(rulegroup);
       return true;
     }
@@ -301,17 +362,6 @@ namespace PuzzLangLib {
       return _gamedef.WinConditions.Count() > 0
         && _gamedef.WinConditions.All(w => TestWinCondition(w));
     }
-
-    // columns used by lookup
-    static MatchOperator[] _wincocol = new MatchOperator[] { MatchOperator.All, MatchOperator.Some, MatchOperator.No };
-    // Win Condition Lookup
-    static bool?[,] _wincolookup = new bool?[,] {
-      // All   Some    No | All-on Some-on No-on
-      { null,  null,  null,  null,  null,  null  },  // object not found
-      { null,  true,  false, false, null,  null  },  // object found, no target
-      { null,  null,  null,  null,  true,  false },  // object and target found
-      { false, false, true,  true,  false, true  },  // on exit (no nulls)
-    };
 
     // return true if this win condition is satisfied
     bool TestWinCondition(WinCondition winco) {

@@ -4,25 +4,26 @@ Puzzlang
 Puzzlang is a pattern language for abstract single-player games and puzzles, and a Unity player. 
 See http://www.polyomino.com/puzzlang.
 
+Puzzlang implements a pattern language compatible with PuzzleScript, an incredibly ingenious creation of Stephen Lavelle. 
+More at http://www.polyomino.com/puzzlescript and www.puzzlescript.net.
+Puzzlang has a compiler, a universal games engine and a player targeting Unity. 
+This in turn can be used to create players for almost any platform: Windows desktop, Linux, WebGL, Android, iOS and so on.
+
 Abstract games are those with no theme, no characters, no story, just a play area, rules and a way for players to win or lose. 
 It usually means games of perfect information such as most board and paper-and-pencil games, but it needn't stop there.
 It can include games for more players, but in Puzzlang games there is only one.
 It can include games with random elements and with complex ways of moving, but Puzzlang is mostly about pushing stuff around.
 It can include games with simple theming, as Sokoban where a 'Player' pushes 'crates' onto 'targets'.
 It's hard to be sure where to draw the boundaries.
-Perhaps there are none, but for now Puzzlang only does what is described here.
+Perhaps there are none, but for now Puzzlang does what is described here.
 
-This release of Puzzlang implements a pattern language compatible with PuzzleScript.
-PuzzleScript is an incredibly ingenious creation of Stephen Lavelle. 
-More at http://www.polyomino.com/puzzlescript and www.puzzlescript.net.
-Full credit to Stephen, but targeting only the web has both strength and limitations.
-Puzzlang targets Unity, which in turn can be used to create players on almost any platform: Windows desktop, Linux, WebGL, Android, iOS and so on.
-
-The release includes a Puzzlang games engine, a Unity player and a selection of games written by others.
+The release includes the Puzzlang games engine, Unity player and a selection of games written by others.
 The Puzzlang engine compiles and executes games scripts. 
 It is nearly feature complete with PuzzleScript, and has a few extensions.
 The Unity player is quite basic, compared to what Unity can achieve, but it can play games and it too has a few enhancements.
 The games are selected from the PuzzleScript demos, and show the range of what now works.
+
+The latest release adds support for flickscreen, zoomscreen and sound seeds, and fixes some bugs.
 
 # Licensing
 
@@ -84,11 +85,12 @@ Compatibility
 =============
 
 Puzzlang and its player can play most PuzzleScript games with 100% compatbility.
+Colours, sounds and keystrokes are as compatible as possible.
 There are some known or possible areas of incompatbility.
 
 1. Not yet implemented.
-There is currently no support for real_time_interval, flickscreen and zoomscreen. 
-Those will be implemented as soon as I can find suitable sample games.
+There is currently no support for youtube or real_time_interval. 
+These may be implemented when I can find suitable sample games.
 
 1. Conflicting rules. 
 There are rule combinations that result in two pieces trying to move to the same location.
@@ -96,21 +98,35 @@ The order of resolution of such conflicts is unspecified, and may be different b
 
 1. Complex rules.
 There are cases where the precise meaning of the rule is unspecified or uncertain.
-This particularly applies to singleton patterns (only one cell) and combination 
-directions (such as horizontal or parallel) in the action (right hand side), but there may be others.
+This applies to singleton patterns (only one cell), combination 
+directions (such as horizontal or parallel) in the action (right hand side), and possibly others.
 The behaviour may differ between PuzzleScript and Puzzlang.
-
-1. Sound.
-The sounds in the Unity player are primitive, and are not intended to match PuzzleScript.
-Feel free to find your own.
 
 1. Randomness.
 The behaviour is random, and is unlikely to match PuzzleScript.
 
 Anything else you find is probably a bug!
 
+Enhancements
+------------
+
+The following enhancements are implemented so far.
+
+1. Setting **pause_at_end_level** makes the engine wait for an extra input at the end of each level. The player uses this.
+
+1. Setting **pause_on_again** makes the engine wait for an extra input when processing an again loop. The player uses this.
+
+1. Object sprites can be any pixel size, not just 5x5. Support for named images is planned.
+
+1. Commands for **undo** and **reset** (start over, disarding any checkpoint).
+
+1. There is an input for **reset**, not bound to any key but used in testing.
+
+1. The player has Pause, Reset, Quit, Restart from a chosen level and Select a game.
+
 The Future
 ----------
+
 This release has a few minor enhancements. Other possibilities include:
 * a language macro capability
 * auto-save and restore in player
@@ -133,13 +149,8 @@ Rules are expanded (similar to PuzzleScript) and compiled into Virtual Machine c
 The implementation of the language compiler is complete, with all known valid programs compiling correctly. 
 The parser is a little picky, and some games that PuzzleScript accepts may compile with warnings or minor errors, and should be corrected.
 
-Most features are included, including rigid, startloop/endloop, random and randomdir.
-A few are not: real-time games, flickscreen and zoomscreen. 
+Most features are included, including rigid, startloop/endloop, random and randomdir, flickscreen and zoomscreen. 
 At the same time the language contains some minor extensions.
-
-* **pause_at_end_level** makes the engine wait for an extra input at the end of each level
-* **pause_on_again** makes the engine wait for an extra input when processing an again loop.
-* Commands for **undo** and **reset** (start over, disarding any checkpoint).
 
 Runtime
 -------
@@ -154,12 +165,11 @@ At runtime there is:
 Performance is generally good but falls short in two areas.
 
 1. The Unity player allocates a game object for each possible sprite. 
-It takes a while to allocate (say) 20x20x4 or 1600 game objects.
-A future release will take a different approach and improve this a lot.
+It takes a while to allocate and set up (say) 20x20x4 or 1600 game objects.
 
 1. Pattern matching on non-moving objects requires scanning the entire level.
 For some games this can be a bit slow.
-This too is on the list for a future release.
+The plan is to improve this in a future release.
 
 ## API and Testing
 
@@ -188,3 +198,4 @@ Unity supports a wide variety of platforms, but Puzzlang has not been tested on 
 Indeed the project should be portable to just about any device, desktop or server platform with a modest amount of effort.
 Feel free to try, and let me know on GitHub or at polyomino/puzzlang.
 
+**

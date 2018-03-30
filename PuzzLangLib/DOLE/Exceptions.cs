@@ -8,6 +8,7 @@
 /// 
 /// This software is distributed in the hope that it will be useful, but with
 /// absolutely no warranty, express or implied. See the licence for details.
+
 /// 
 /// Error handling and exceptions
 /// 

@@ -14,6 +14,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 using PuzzLangLib;
+using DOLE;
 
 public class ScriptSelectionView : MonoBehaviour {
   public Text TitleText;
@@ -27,16 +28,15 @@ public class ScriptSelectionView : MonoBehaviour {
   internal string Selection;
 
   MainController _main;
-  GameModel _model { get { return _main.Model; } }
-  GameDef _def { get { return _main.GameDef; } }
   IList<string> _scripts;
+  GameState _activestate;
 
   void Start() {
   }
 
   void OnEnable() {
     _main = FindObjectOfType<MainController>();
-    _scripts = null;
+    _activestate = GameState.None;
     GetComponent<Image>().color = _main.Items.BackgroundColour;
     TitleText.color = _main.Items.ForegroundColour;
     StatusText.color = _main.Items.ForegroundColour;
@@ -44,29 +44,40 @@ public class ScriptSelectionView : MonoBehaviour {
 
   // Update is called once per frame
   void Update() {
-    switch (_main.GameState) {
-    case GameState.Select:
-      if (_scripts == null) {
-        LoadScriptList();
+    if (_activestate != _main.GameState) {
+      Selection = null;
+      switch (_main.GameState) {
+      case GameState.Select:
+        LoadScriptList(_main.Items.ScriptList);
         TitleText.text = "Select Script";
-        StatusText.text = "X to Select, Escape to cancel";
+        StatusText.text = "X to Select, Right for Gists, Escape to cancel";
         ScriptText.text = "";
         ListVerticalScrollbar.value = 1;
+        break;
+      case GameState.Gist:
+        LoadScriptList(_main.Items.GistList);
+        TitleText.text = "Select Gist";
+        StatusText.text = "X to Select, Left for Scripts, Escape to cancel";
+        ScriptText.text = "";
+        ListVerticalScrollbar.value = 1;
+        break;
       }
-      break;
+      _activestate = _main.GameState;
     }
+    ScriptText.text = (Selection == null) ? "Please make a selection"
+      : (_main.Items.ReadScript(Selection, false)).Left(2000);
   }
 
   internal void ItemButtonHandler(string name, string input, string prompt) {
     if ("enter,select".Contains(input)) {
-      Selection = name;   // this selection is picked up on input
-      ScriptText.text = _main.Items.ReadScript(name);
+      Selection = (_activestate == GameState.Gist) ? "gist:" + name : name;
+      ScriptText.text = _main.Items.ReadScript(Selection, true);  // first time, force reload
       ScriptVerticalScrollbar.value = 1;
     }
   }
 
-  void LoadScriptList() {
-    _scripts = _main.Items.ScriptList;
+  void LoadScriptList(IList<string> scripts) {
+    _scripts = scripts;
     foreach (Transform child in ContentPanel.transform)
       Destroy(child.gameObject);
 

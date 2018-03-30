@@ -144,8 +144,14 @@ namespace PuzzLangLib {
         case Opcodes.ScanOMDN:
           _break = State.OpScanOMDN(GetSet(), GetDir(), GetDir(), GetOper());
           break;
+        case Opcodes.CheckON:
+          _break = State.OpCheckON(GetSet(), GetOper());
+          break;
+        case Opcodes.CheckOMN:
+          _break = State.OpCheckOMN(GetSet(), GetDir(), GetOper());
+          break;
         case Opcodes.CreateO:
-          _break = State.OpCreateO(GetSet());
+          _break = State.OpCreateO(GetSet(), GetDir());
           break;
         case Opcodes.DestroyO:
           _break = State.OpDestroyO(GetSet());

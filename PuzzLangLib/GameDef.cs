@@ -38,11 +38,13 @@ namespace PuzzLangLib {
     // extensions
     pause_at_end_level,
     pause_on_again,
+    statistics_logging,
   }
 
   // used in win conditions and rule object matching
   internal enum MatchOperator {
-    None, No, Any, Some, All
+    None, No, Some, All,
+    Any,    // alias for Some
   }
 
   // used in defining mask and pile objects
@@ -90,16 +92,22 @@ namespace PuzzLangLib {
     Checkpoint, Win, Again, Tick,
     // these must be specified as a command in a rule
     Sfx0, Sfx1, Sfx2, Sfx3, Sfx4, Sfx5, Sfx6, Sfx7, Sfx8, Sfx9, Sfx10,
-    MaxWithObject_ = Cantmove,
-    MinSound_ = Sfx0,     // everything after here is a sound (even if it's a command)
   }
 
-  // commands allowed in rules
+  // commands allowed in rules and used for both parsing and runtime
+  // commands are executed in this order
   internal enum RuleCommand {
-    None, Again, Cancel, Checkpoint, Restart, Undo, Win,    // single commands
-    Message,                                          // message, requires text argument
-    Sfx0, Sfx1, Sfx2, Sfx3, Sfx4, Sfx5, Sfx6, Sfx7, Sfx8, Sfx9, Sfx10,  // sound
-    Sound_,       // used in parsing only
+    None,
+    Again,        // run rules again
+    Checkpoint,   // save state of level (but no other state)
+    Message,      // message, requires text argument
+    Sound_,       // play a sound (internal command after parsing)
+    Cancel,       // stop processing, discard new state
+    Undo,         // stop processing, discard current state
+    Restart,      // stop processing, discard all states, return to checkpoint
+    Win,          // stop processing, set finished
+    // sounds as parsed, not used at runtime
+    Sfx0, Sfx1, Sfx2, Sfx3, Sfx4, Sfx5, Sfx6, Sfx7, Sfx8, Sfx9, Sfx10,  
   }
 
   // special actions to prefix rules
@@ -138,6 +146,10 @@ namespace PuzzLangLib {
     internal MatchOperator Action;
     internal HashSet<int> Objects;
     internal HashSet<int> Others;
+
+    public override string ToString() {
+      return String.Format("WinCo<{0}:{1}:{2}>", Action, Objects.Join(), Others?.Join());
+    }
   }
 
   /// <summary>
@@ -151,9 +163,8 @@ namespace PuzzLangLib {
     internal List<CompiledRule> Rules = new List<CompiledRule>();
 
     public override string ToString() {
-      return String.Format("RuleGroup<{0}:{1}>{{{2}}}", Id,
-        Util.JoinNonEmpty(" ", IsRandom ? "random" : null, IsRigid ? "rigid" : null, Loop), 
-        Rules.Select(r=>r.RuleId).Join());
+      return String.Format("RuleGroup<{0}:{1}{2}>[{3}]", Loop, Id, IsRandom ? " random" : "",
+        Rules.Select(r => r.RuleId).Join());
     }
   }
 
@@ -168,8 +179,8 @@ namespace PuzzLangLib {
     internal RuleCode CommandCode;
 
     public override string ToString() {
-      return String.Format("Rule<{0},{1},{2},{3},{4}>", 
-        RuleId, RuleDirection, PatternCode.IsEmpty, ActionCode.IsEmpty, PatternCode.IsEmpty);
+      return String.Format("Rule<{0}:{1},{2},{3},{4}>", 
+        RuleId, RuleDirection, PatternCode, ActionCode, CommandCode);
     }
   }
 
@@ -177,6 +188,13 @@ namespace PuzzLangLib {
   /// The compiled game as data. All strings replaced by integers/enums
   /// </summary>
   public class GameDef {
+    static internal HashSet<Direction> StepDirection = new HashSet<Direction> {
+      Direction.Up, Direction.Right, Direction.Down, Direction.Left, Direction.Action
+    };
+
+    public int ObjectCount { get { return Objects.Count; } }
+    public int LevelCount { get { return LevelIndex.Count; } }
+
     internal Dictionary<OptionSetting, bool> BoolSettings = new Dictionary<OptionSetting, bool>();
     internal Dictionary<OptionSetting, int> IntSettings = new Dictionary<OptionSetting, int>();
     internal Dictionary<OptionSetting, float> NumberSettings = new Dictionary<OptionSetting, float>();
@@ -185,7 +203,6 @@ namespace PuzzLangLib {
     internal int[] Palette = new int[16];
 
     internal List<Object> Objects = new List<Object>();
-
     internal List<RuleGroup> EarlyRules = new List<RuleGroup>();
     internal List<RuleGroup> LateRules = new List<RuleGroup>();
     internal Dictionary<SoundTrigger, string> GameSounds = new Dictionary<SoundTrigger, string>();
@@ -193,10 +210,7 @@ namespace PuzzLangLib {
     internal List<WinCondition> WinConditions = new List<WinCondition>();
     internal List<string> Messages = new List<string>();
     internal List<Level> Levels = new List<Level>();
-    internal List<Pair<LevelKind, int>> LevelIndex = new List<Pair<LevelKind, int>>(); 
-
-    public int ObjectCount { get { return Objects.Count; } }
-    public int LevelCount { get { return LevelIndex.Count; } }
+    internal List<Pair<LevelKind, int>> LevelIndex = new List<Pair<LevelKind, int>>();
     internal int LayerCount;
     internal HashSet<int> Players = null;  // .NET 3.5
     internal HashSet<int> Background = null;
@@ -218,14 +232,14 @@ namespace PuzzLangLib {
     // get colour by name, or other if not defined
     public int GetColour(OptionSetting name, int other) {
       var value = IntSettings.SafeLookup(name, -99);
-      return (value == -99) ? other : GetColour(value);
+      return (value == -99) ? other : GetRGB(value);
     }
 
-    // get colour by index or value
-    public int GetColour(int value) {
-      return (value >= 0) ? value
+    // get colour by index or value as RGB or -1
+    public int GetRGB(int value) {
+      return (value >= 0 && value < Palette.Length) ? Palette[value]
         : (value == -1) ? value  // transparent
-        : Palette[-value - 2];
+        : value & 0xffffff;
     }
 
 
@@ -260,7 +274,14 @@ namespace PuzzLangLib {
     }
 
     public string GetName(int obj) {
-      return Objects[obj - 1].Name;
+      return (obj == 0) ? "(--)" : Objects[obj - 1].Name;
+    }
+
+    //--- sounds
+    public IList<string> GetSounds() {
+      return ObjectSounds.Select(o => o.Seed)
+        .Concat(GameSounds.Values)
+        .Distinct().ToList();
     }
 
     internal void AddGameSound(SoundTrigger trigger, string seed) {
@@ -276,15 +297,20 @@ namespace PuzzLangLib {
       });
     }
 
-    internal void AddRule(CompiledRule rule, bool late, bool plus, bool random, bool rigid, int loop) {
-      var rules = (late) ? LateRules : EarlyRules;
-      if (!plus)
-        rules.Add(new RuleGroup {
-          Id = rules.Count,
+    // get the correct rule group, creating if needed
+    internal RuleGroup GetRuleGroup(bool late, bool plus, bool random, bool rigid, int loop) {
+      var groups = (late) ? LateRules : EarlyRules;
+      if (!plus || groups.Count == 0) {
+        groups.Add(new RuleGroup {
+          Id = groups.Count,
           IsRandom = random,
           IsRigid = rigid,
-          Loop = loop, });
-      rules.Last().Rules.Add(rule);
+          Loop = loop,
+        });
+      }
+      var group = groups.Last();
+      group.IsRigid |= rigid;   // any rigid rule applies to the entire group
+      return group;
     }
 
     internal void AddWinCondition(MatchOperator action, HashSet<int> objects, HashSet<int> others) {

@@ -10,22 +10,33 @@
 /// absolutely no warranty, express or implied. See the licence for details.
 /// 
 using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Net;
 using System.IO;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
+using SimpleJSON;
+using DOLE;
+using System.Text.RegularExpressions;
+// the NewtonSoft way
+//using Newtonsoft.Json;
+//using Newtonsoft.Json.Linq;
 
 namespace PuzzLangMain {
   static class GistAccess {
+    static internal string ExtractGist(string gist) {
+      var regex = new Regex("[0-9a-z]{32}");
+      var match = regex.Match(gist);
+      return match.Success ? match.Value : null;
+    }
 
     // Load a PS game as a piece of JSON given a gist id
     static internal string Load(string id) {
       var json = LoadJson(id);
       if (json == null) return null;
-      var pjson = JObject.Parse(json);
-      return pjson["files"]["script.txt"]["content"].Value<string>();
+      var pjson = JSON.Parse(json);
+      Logger.WriteLine(0, "test {0}", pjson[""]);
+      return pjson["files"]["script.txt"]["content"];
+      // the NewtonSoft way
+      //var pjson = JObject.Parse(json);
+      //return pjson["files"]["script.txt"]["content"].Value<string>();
     }
 
     // Load a piece of JSON given a gist id

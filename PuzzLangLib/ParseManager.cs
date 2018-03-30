@@ -22,7 +22,7 @@ namespace PuzzLangLib {
   /// A subrule is an ordered list of cells (disjoint subpatterns)
   /// </summary>
   class SubRule {
-    //internal IList<Direction> Directions;             // direction(s) to look for match
+    internal IList<Direction> Directions;             // direction(s) to look for match
     internal IList<IList<RuleAtom>> Cells;  // sub-parts to match or act on
 
     public override string ToString() {
@@ -45,21 +45,22 @@ namespace PuzzLangLib {
     internal static readonly ObjectSymbol Empty = new ObjectSymbol();
     internal bool IsNegated { get; private set; }           // if this is a negative test
     internal Direction Direction { get; private set; }   // direction object should be moving 
-    internal ObjectSymbol Objects { get; private set; }     // object/set to match at location
+    internal ObjectSymbol Object { get; private set; }     // object/set to match at location
     internal RuleCommand Command { get; private set; }   // action to take if rule part succeeds
 
-    internal bool IsEllipsis { get { return Objects == Ellipsis; } }
+    internal bool IsEllipsis { get { return Object == Ellipsis; } }
+    internal bool HasObject { get { return Object.Objects.Count > 0; } }
 
     // note: object name used here, not tostring()
     public override string ToString() {
-      return Util.JoinNonEmpty(" ", IsNegated ? "no" : "", 
+      return IsEllipsis ? "..." : Util.JoinNonEmpty(" ", IsNegated ? "no" : "", 
         Direction == Direction.None ? "" : Direction.ToString(),
-        Objects.Name, Command == RuleCommand.None ? "" : Command.ToString());
+        Object.Name, Command == RuleCommand.None ? "" : Command.ToString());
     }
 
     internal static RuleAtom Create(bool isnegated, Direction direction, ObjectSymbol objects, RuleCommand command) {
       return new RuleAtom {
-        IsNegated = isnegated, Direction = direction, Objects = objects, Command = command,
+        IsNegated = isnegated, Direction = direction, Object = objects, Command = command,
       };
     }
 
@@ -126,6 +127,9 @@ namespace PuzzLangLib {
   /// Implements parser support with access to game data, colour, etc
   /// </summary>
   internal class ParseManager {
+    const SoundTrigger MaxWithObject_ = SoundTrigger.Cantmove;
+    const SoundTrigger MinSound_ = SoundTrigger.Sfx0;
+
     public int ErrorCount { get; set; }
     public int WarningCount { get; private set; }
     internal GameDef GameDef { get { return _gamedef; } }
@@ -229,7 +233,7 @@ namespace PuzzLangLib {
       _gamedef.Objects.Add(new Object {
         Name = name, Layer = 0, Width = width, Sprite = grid
       });
-      DebugWriteline("Object {0}: '{1}' {2}x{3}", 
+      DebugLog("Object {0}: '{1}' {2}x{3}", 
         _gamedef.Objects.Count, name, width, grid.Count / width);
       Logger.WriteLine(4, "{0}", grid.Select(c=>String.Format("{0:X}",c)).Join());
       return _gamedef.Objects.Count;
@@ -250,7 +254,7 @@ namespace PuzzLangLib {
         CompileError("incompatible symbols: {0}", others.Join());
       }
       _symbols[name] = sym;
-      DebugWriteline("Define '{0}': {1} <{2}>",
+      DebugLog("Define '{0}': {1} <{2}>",
         name, sym.Kind, sym.Objects.Select(o => _gamedef.GetName(o)).Join());
     }
 
@@ -275,7 +279,7 @@ namespace PuzzLangLib {
     internal void AddSound(string trigger, string seed, string objct, IList<string> directions) {
       Logger.WriteLine(2, "Sound {0}: {1} {2} {3}", trigger, seed, objct, directions.Join());
       var trig = ParseTriggerEvent(trigger);
-      if (trig <= SoundTrigger.MaxWithObject_) {
+      if (trig <= MaxWithObject_) {
         var obj = ParseMask(objct);
         if (directions != null && directions.Count > 0)
           _gamedef.AddObjectSound(trig, obj, directions.Select(c => ParseDirection(c)), seed);
@@ -294,8 +298,12 @@ namespace PuzzLangLib {
 
     // add a win condition as a relationship between two masks
     internal void AddWin(string condition, string ident, string other) {
-      _gamedef.AddWinCondition(condition.SafeEnumParse<MatchOperator>() ?? MatchOperator.None,
+      var winco = condition.SafeEnumParse<MatchOperator>() ?? MatchOperator.None;
+      // Any is an (undocumented) synonym for Some
+      _gamedef.AddWinCondition(winco == MatchOperator.Any ? MatchOperator.Some : winco,
         ParseMask(ident), (other == null) ? null : ParseMask(other));
+      //_gamedef.AddWinCondition(condition.SafeEnumParse<MatchOperator>() ?? MatchOperator.None,
+      //  ParseMask(ident), (other == null) ? null : ParseMask(other));
     }
 
     // update loop state, return true if ok
@@ -308,28 +316,28 @@ namespace PuzzLangLib {
 
 
     // expand rule and add to game data
-    internal void AddRule(int ruleid, IList<string> prefixes, IList<string> directions,
+    internal void AddRule(int ruleid, IList<RulePrefix> prefixes, IList<Direction> directions,
       IList<SubRule> pattern, IList<SubRule> action, IList<string> commands) {
 
+      // create the base rule with unexpanded directions
       var arule = new AtomicRule {
         RuleId = ruleid,
-        Prefixes = prefixes.Select(p => ParseRulePrefix(p)).ToList(),
-        Directions = directions.Select(c => ParseDirection(c)).ToList(),
+        Prefixes = prefixes,
+        Directions = directions,
         Patterns = pattern,
         Actions = action,
         Commands = commands.Select(c => ParseCommand(c)).ToList(),
       };
 
-      var first = true;
-      foreach (var crule in _rulebuilder.Build(arule, _loopcounter)) {
-        _gamedef.AddRule(crule,
-          arule.Prefixes.Contains(RulePrefix.Late),
-          arule.Prefixes.Contains(RulePrefix.Plus_) || !first,
-          arule.Prefixes.Contains(RulePrefix.Random),
-          arule.Prefixes.Contains(RulePrefix.Rigid),
-          _inloop ? _loopcounter : 0);
-        first = false;
-      }
+      // expanded rules all go in the same group
+      var rulegroup = _gamedef.GetRuleGroup(
+            arule.Prefixes.Contains(RulePrefix.Late),   // choose rulegroup set
+            arule.Prefixes.Contains(RulePrefix.Plus_),  // choose rulegroup
+            arule.Prefixes.Contains(RulePrefix.Random), // at runtime choose rule from group
+            arule.Prefixes.Contains(RulePrefix.Rigid),  // entire group is rigid
+            _inloop ? _loopcounter : 0);
+      foreach (var crule in _rulebuilder.Build(arule, rulegroup.Id)) 
+        rulegroup.Rules.Add(crule);
     }
 
     Pair<RuleCommand, string> ParseCommand(string command) {
@@ -338,7 +346,7 @@ namespace PuzzLangLib {
 
       // if the command is a sound then it's a sound command
       var sound = ParseTriggerEvent(command);
-      if (sound >= SoundTrigger.MinSound_) {
+      if (sound >= MinSound_) {
         var seed = _gamedef.GameSounds.SafeLookup(sound);
         if (seed == null) CompileWarn("sound not defined: {0}", command);
         return Pair.Create(RuleCommand.Sound_, seed ?? "");
@@ -364,32 +372,36 @@ namespace PuzzLangLib {
         } else _gamedef.Background = background.Objects;
       }
       var level = ParseLevel(lines);
+      DebugLog("Level {0}: {1}x{2}x{3}", _gamedef.LevelIndex.Count, level.Height, level.Width, level.Depth);
       _gamedef.AddLevel(level);
-      Logger.WriteLine(2, "Level {0}: {1}x{2}x{3}", _gamedef.LevelIndex.Count, level.Height, level.Width, level.Depth);
     }
 
     internal void AddMessage(string message) {
+      DebugLog("Level {0}: '{1}'", _gamedef.Messages.Count, message);
       _gamedef.AddMessage(message);
-      Logger.WriteLine(2, "Message {0}: '{1}'", _gamedef.Messages.Count, message);
     }
 
     // Parse an array of grid lines and depth, converting glyphs into objects in layers
     Level ParseLevel(IList<string> gridlines) {
-      var level = Level.Create(gridlines.Max(g => g.Length), gridlines.Count, _gamedef.LayerCount,
-        (_gamedef.Levels.Count + 1).ToString());
+      var width = gridlines.Max(g => g.Length);
+      if (gridlines.Any(l => l.Length != width))
+        CompileWarn("short level line(s)");
       var bgobjects = new HashSet<int>();
+
+      // create empty level of required size
+      var level = Level.Create(width, gridlines.Count, _gamedef.LayerCount,
+        (_gamedef.Levels.Count + 1).ToString());
 
       // parse each line of the grid
       for (int y = 0; y < gridlines.Count; y++) {
-        if (gridlines[y].Length != level.Width) {
-          CompileError("short level line");
-          break;
-        }
+        var line = gridlines[y];
+        if (line.Length < width) 
+          line += new string(line.Last(), width - line.Length);
+
         // parse each column (which must be a glyph object or pile)
         // track any background objects seen
-        for (int x = 0; x < gridlines[y].Length; x++) {
-          //level[x, y, 1] = _gamedef.Backgound;
-          foreach (var obj in ParsePile(gridlines[y].Substring(x, 1))) {
+        for (int x = 0; x < line.Length; x++) {
+          foreach (var obj in ParsePile(line.Substring(x, 1))) {
             if (_gamedef.Background.Contains(obj))
               bgobjects.Add(obj);
             var layer = _gamedef.GetLayer(obj);
@@ -420,10 +432,10 @@ namespace PuzzLangLib {
       if (_inloop) CompileError("missing endloop");
     }
 
-    internal void DebugWriteline(string format, params object[] args) {
+    internal void DebugLog(string format, params object[] args) {
       if (GameDef.GetSetting(OptionSetting.debug, false))
         _out.WriteLine(String.Format(format, args));
-      else Logger.WriteLine(1, format, args);
+      else Logger.WriteLine(1, "% " + format, args);
     }
 
     internal void CompileError(string fmt, params object[] args) {

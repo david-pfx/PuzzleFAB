@@ -17,111 +17,67 @@ using System.IO;
 using UnityEngine;
 using DOLE;
 using PuzzLangLib;
+using NsfxrLib;
+using System.Text.RegularExpressions;
 
 public class ItemManager : MonoBehaviour {
   // settings
-  public bool VerboseLogging = false;
   public string GamesDirectory = "Games";
+  public string GistFile = "Gists.txt";
+  public TextAsset StartupScript;
   public Color BackgroundColour = Color.yellow;
   public Color ForegroundColour = Color.blue;
+  public bool VerboseLogging = false;
   public float AgainInterval = 0.25f;
   public float RealtimeInterval = 0.25f;
-  public Pair<int, int> FlickScreen = null;
-  public Pair<int, int> ZoomScreen = null;
-  public List<AudioClip> SoundEffects = new List<AudioClip>();
+  public AudioClip DefaultSound;
 
-  internal string Message { get { return _writer.ToString(); } }
   internal List<string> ScriptList { get { return _scripts; } }
+  internal List<string> GistList { get { return _gists; } }
+  internal Dictionary<string, string> ScriptLookup { get { return _scriptlookup; } }
 
-  string _userdirectory;
   readonly string[] _patterns = new string[] { "*.pzl", "*.txt" };
+  string _appdirectory;
+  string _userdirectory;
   List<string> _scripts = new List<string>();
-  StringWriter _writer = new StringWriter();
-  GameModel _model = null;
-  List<Sprite> _sprites = null;
-  StringWriter _logwriter = new StringWriter();
-
-  internal void ShowLog() {
-    var output = _logwriter.ToString();
-    _logwriter.GetStringBuilder().Length = 0;
-    if (output != "") Debug.Log(output);
-  }
-
-  internal Sprite GetSprite(int id) {
-    return (id >= 1 && id <= _sprites.Count) ? _sprites[id - 1] : null;
-  }
+  List<string> _gists = new List<string>();
+  Dictionary<string, string> _scriptlookup = new Dictionary<string, string>();
 
   // Find all games and add to script list
   internal void FindAllScripts() {
-    _userdirectory = Util.Combine(Path.GetDirectoryName(Application.dataPath), GamesDirectory);
-    // find all games included as text resources
+    _appdirectory = Path.GetDirectoryName(Application.dataPath);
+    _userdirectory = Util.Combine(_appdirectory, GamesDirectory);
+    _scriptlookup["<startup>"] = StartupScript.text;
     AddScripts(_userdirectory);
-    Util.Trace(2, "[Find games {0}]", _scripts.Join());
+    AddGists(Util.Combine(_appdirectory, GistFile));
   }
 
-  // load a script by name
-  internal string ReadScript(string scriptname) {
-    Util.Trace(2, "Read script {0}", scriptname);
-    var path = Path.Combine(_userdirectory, scriptname);
-    if (!File.Exists(path)) return null;
-    using (var sr = new StreamReader(path)) {
-      return sr.ReadToEnd();
+  // load a script by name for viewing
+  internal string ReadScript(string name, bool reload) {
+    if (reload) {
+      Util.Trace(2, "Read script {0}", name);
+      if (name.StartsWith("gist:"))
+        ReadGistScript(name);
+      else ReadFileScript(name);
     }
+    return _scriptlookup.SafeLookup(name);
   }
 
-  // compile a script and return engine
-  // if null, the reason why has been written to output
-  internal GameModel Compile(string scriptname) {
-    Util.Trace(2, "Compile script '{0}'", scriptname);
-    try {
-      var script = ReadScript(scriptname);
-      var compiler = Compiler.Compile(scriptname, new StringReader(script), _logwriter);
-      if (compiler.Success) _model = compiler.Model;
-      else return null;
-    } catch (Exception ex) {
-      _writer.WriteLine(ex.Message);
-      return null;
-    }
-    // set options required for proper timing; also logging
-    _model.GameDef.SetSetting(OptionSetting.pause_at_end_level, true);
-    _model.GameDef.SetSetting(OptionSetting.pause_on_again, true);
-    if (VerboseLogging) _model.GameDef.SetSetting(OptionSetting.verbose_logging, true);
-
-    // get settings for UI
-    BackgroundColour = ColorFromRgb(_model.GameDef.GetColour(OptionSetting.background_color, 0));
-    ForegroundColour = ColorFromRgb(_model.GameDef.GetColour(OptionSetting.text_color, 0xffffff));
-    AgainInterval = _model.GameDef.GetSetting(OptionSetting.again_interval, 0.1f);
-    RealtimeInterval = _model.GameDef.GetSetting(OptionSetting.realtime_interval, 0.25f);
-    FlickScreen = _model.GameDef.GetSetting(OptionSetting.flickscreen, (Pair<int, int>)null);
-    ZoomScreen = _model.GameDef.GetSetting(OptionSetting.zoomscreen, (Pair<int,int>)null);
-
-    LoadAssets();
-    return _model;
-  }
-
-  // get a clip from a seed or name
-  internal AudioClip GetClip(string name) {
-    var clip = SoundEffects.FirstOrDefault(s => s.name.ToLower().Contains(name.ToLower()));
-    if (clip == null) {
-      var seed = name.SafeIntParse() ?? 0;
-      if (seed != 0) {
-        var clips = SoundEffects.Where(s => s.name[0] == '0' + (seed % 10)).ToList();
-        if (clips.Count > 0)
-          clip = clips[seed / 100 % clips.Count];
+  // really load a script file
+  internal void ReadFileScript(string name) {
+    var path = Path.Combine(_userdirectory, name);
+    if (File.Exists(path)) {
+      using (var sr = new StreamReader(path)) {
+        _scriptlookup[name] = sr.ReadToEnd();
       }
     }
-    return clip;
   }
 
-  // make a table of all the images in this game
-  void LoadAssets() {
-    Util.Trace(2, "Load assets count={0}", _model.GameDef.ObjectCount);
-    _sprites = new List<Sprite>();
-    for (int i = 1; i <= _model.GameDef.ObjectCount; i++) {
-      var texture = MakeTexture(_model.GameDef.GetObjectSprite(i));
-      var sprite = Sprite.Create(texture, new Rect(0, 0, texture.width, texture.height), new Vector2(0.5f, 0.5f));
-      _sprites.Add(sprite);
-    }
+  // really load a gist file -- eventually
+  internal void ReadGistScript(string name) {
+    _scriptlookup[name] = "Waiting for gist...";
+    WebAccess webaccess = GetComponent<WebAccess>();
+    webaccess.StartLoadGist(name);
   }
 
   // Load games found in a directory
@@ -132,45 +88,32 @@ public class ItemManager : MonoBehaviour {
         foreach (var script in scripts)
           _scripts.Add(Path.GetFileName(script));
       }
-    } catch (Exception) { }
-  }
-
-  // Create a texture from an array of colours
-  Texture2D MakeTexture(Pair<int, IList<int>> pair) {
-    var width = pair.Item1;
-    var length = pair.Item2.Count;
-    var pixels = new Color32[length];
-
-    // build pixel output in single pixels
-    for (int i = 0; i < length; i++) {
-      var y = length / width - i / width - 1;
-      var x = i % width;
-      // colours may be a palette index
-      var rgb = _model.GameDef.GetColour(pair.Item2[y * width + x]);
-      pixels[i] = ColorFromRgb(rgb);
+    } catch (Exception ex) {
+      Util.Trace(1, "Exception finding scripts: {0}", ex.ToString());
     }
+    Util.Trace(2, "loaded {0} script(s)", _scripts.Count);
+  }
 
-    // now expand it
-    var blockf = 16;
-    var bwidth = blockf * width;
-    var bpixels = new Color32[length * blockf * blockf];
-    for (int i = 0; i < bpixels.Length; i++) {
-      var y = (i / bwidth) / blockf;
-      var x = (i % bwidth) / blockf;
-      bpixels[i] = pixels[y * width + x];
+  // load gists from a list in a file
+  void AddGists(string path) {
+    var regex = new Regex("[0-9a-z]{32}");
+    try {
+      if (!File.Exists(path)) return;
+      using (var sr = new StreamReader(path)) {
+        var line = sr.ReadLine();
+        while (line != null) {
+          var match = regex.Match(line);
+          if (!match.Success)
+            Util.Trace(1, "invalid gist: '{0}'", line);
+          else _gists.Add(match.Value);
+          line = sr.ReadLine();
+        }
+      }
+    } catch (Exception ex) {
+      Util.Trace(1, "Exception finding gists: {0}", ex.ToString());
     }
-
-    var tex = new Texture2D(bwidth, bpixels.Length / bwidth);
-    tex.SetPixels32(bpixels);
-    tex.Apply();
-    return tex;
+    Util.Trace(2, "loaded {0} gist(s)", _gists.Count);
   }
-
-  // create colour from rgb
-  Color ColorFromRgb(int rgb) {
-    if (rgb == -1) return Color.clear;
-    return new Color32((byte)(rgb >> 16), (byte)(rgb >> 8), (byte)rgb, 255);
-  }
-
 
 }
+

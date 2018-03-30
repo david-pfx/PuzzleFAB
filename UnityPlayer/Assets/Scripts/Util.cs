@@ -18,8 +18,18 @@ using System.IO;
 
 public static class Util {
   public static int MaxLoggingLevel = 2;
+  static float realtime = Time.realtimeSinceStartup;
+
   public static void Trace(int level, string format, params object[] args) {
-    if (level <= MaxLoggingLevel) Debug.Log(string.Format(format, args));
+    if (level <= MaxLoggingLevel) {
+      if (format.StartsWith(">")) {
+        var t = Time.realtimeSinceStartup;
+        var time = String.Format("<{0:f1}", 1000 * (t - realtime));
+        Debug.Log(string.Format(time + format, args));
+        realtime = t;
+      } else
+        Debug.Log(string.Format(format, args));
+    }
   }
 
   public static void IsTrue(bool test, object msg = null) {

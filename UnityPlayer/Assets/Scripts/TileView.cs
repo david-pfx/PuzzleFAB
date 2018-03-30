@@ -34,7 +34,6 @@ public class TileView : MonoBehaviour {
   void Update() {
     switch (_main.GameState) {
     case GameState.Level:
-    case GameState.EndLevel:
       SetSprite();
       break;
     default:
@@ -46,7 +45,7 @@ public class TileView : MonoBehaviour {
   bool _visible = false;
   void SetVisible(bool visible) {
     if (visible != _visible) {
-      GetComponent<Renderer>().enabled = visible;
+      _renderer.enabled = visible;
       _visible = visible;
     }
   }
@@ -56,7 +55,8 @@ public class TileView : MonoBehaviour {
     if (force || sprite != _sprite) {
       _renderer.sprite = sprite;
       if (sprite != null) {
-        var cursize = _renderer.sprite.bounds.size;
+        if (LevelIndex.x == _main.Model.CurrentLevel.Length - 1) Util.Trace(2, ">SetSprite {0}", LevelIndex);
+        var cursize = sprite.bounds.size;
         var scale = Math.Max(Size.x / cursize.x, Size.y / cursize.y);
         transform.localScale = new Vector3(scale, scale, 0);
       }

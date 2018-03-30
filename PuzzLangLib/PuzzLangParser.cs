@@ -94,7 +94,7 @@ namespace PuzzLangLib {
       return _manager.ParseSymbol(value) != null;
     }
     bool IsWinAction(string value) {
-      return value.SafeEnumParse<MatchOperator>() != null;
+      return (value.SafeEnumParse<MatchOperator>() ?? MatchOperator.None) != MatchOperator.None;
     }
     bool IsSoundTrigger(string value) {
       return _manager.ParseTriggerEvent(value) != SoundTrigger.None;
@@ -139,7 +139,9 @@ namespace PuzzLangLib {
         ParseError(state, $"nesting error: {loop}");
       return null;
     }
-    string DefRule(Cursor state, IList<string> prefordirs,
+
+    // define a rule with prefixes and subrules
+    string DefRule(Cursor state, IList<string> prefixes,
       IList<SubRule> pattern, IList<SubRule> action, IList<string> commands) {
 
       if (action.Count == 0) {
@@ -149,15 +151,20 @@ namespace PuzzLangLib {
           && Enumerable.Range(0, pattern.Count).All(x => pattern[x].Cells.Count == action[x].Cells.Count);
         if (!ok) ParseError(state, "rule pattern and action size mismatch");
       }
-      var prefixes = prefordirs.Where(p => IsRulePrefix(p)).ToList();
-      var directions = prefordirs.Where(p => !IsRulePrefix(p)).ToList();
-      _manager.AddRule(LineNumber, prefixes, directions, pattern, action, commands);
+
+      // rule directions parsed on first subrule; others left as future enhancement
+      if (pattern.Skip(1).Any(p => p.Directions.Count > 0) || action.Any(p => p.Directions.Count > 0))
+        _manager.CompileWarn("subrule directions ignored");
+
+      var prefs = prefixes.Select(c => _manager.ParseRulePrefix(c)).ToList();
+      _manager.AddRule(LineNumber, prefs, pattern.First().Directions, pattern, action, commands);
       return null;
     }
 
     // define a rule sequence (pattern or action) as a list of cells
     SubRule DefSubRule(IList<string> directions, IList<IList<RuleAtom>> subparts) {
       return new SubRule {
+        Directions = directions.Select(c => _manager.ParseDirection(c)).ToList(),
         Cells = subparts
       };
     }

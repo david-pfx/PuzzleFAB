@@ -24,6 +24,7 @@ namespace PuzzLangTest {
     [ClassInitialize]
     static public void ClassSetup(TestContext context) {
     }
+
     [TestMethod]
     public void BasicPush() {
       var setup =
@@ -81,18 +82,16 @@ namespace PuzzLangTest {
     [TestMethod]
     public void MatchStationary() {
       var template =
-         "(rul):[> p|r]->[> p|> r];" +
-               "[p|stationary r]->[p|]" +
-        "@(lev):..R..;.....;R.P.R;.....;..R.." +
+         "(rul):[> p | r]->[> p | > r];" +
+               "[ p | stationary r]->[ p | b ];" +
+               "[stationary r]->[ g ];" +
+        "@(lev):.R.PR..;"+
         "@(win):";
       var tests = new string[,] {
-        { "restart",                          "10; right; 13 1  12 1  13 end" },
-        { "restart,right",                    "10; right; 13 1  1  12 13 end" },
-        { "restart,right,right",              "10; right; 13 1  1  12 13 end" },
-        { "restart,right,right,left",         "10; right; 13 1  12 1  1  end" },
-        { "restart,left",                     "10; right; 13 12 1  1  13 end" },
-        { "restart,left,left",                "10; right; 13 12 1  1  13 end" },
-        { "restart,left,left,right",          "10; right; 1  1  12 1  13 end" },
+        { "restart",                          "0; right; 1 13 1  12 13 1  1 end" },
+        { "restart,up",                       "0; right; 1 15 1  12 14 1  1 end" },
+        { "restart,right",                    "0; right; 1 15 1  1  12 13 1 end" },
+        { "restart,right,up",                 "0; right; 1 15 1  1  12 14 1 end" },
       };
 
       DoTests("", "", template, tests);
@@ -140,28 +139,30 @@ namespace PuzzLangTest {
       DoTests("", "", template, tests);
     }
 
+    // ellipsis matches only once???
     [TestMethod]
-    public void BasicWin() {
-      var template = 
-         "(rul):[>p|r]->[>p|>r]" +
-        "@(lev):..P.Y.." +
-        "@(win):{0}";
-      var variations = 
-        "all p on y; some p on y; all y on p; some y on p; "+
-        "all p on o; some p on o; all o on p; some o on p";
+    public void EllipsisNoDup() {
+      var template =
+         "(rul):[ > p | ... | r ] -> [ p | ... | b ]" +
+        "@(lev):...P.RR.." +
+        "@(win):";
       var tests = new string[,] {
-        { "restart",                          "0; right; 1 1 12 1 16 1 1 end" },
-        { "restart,right",                    "0; right; 1 1 1 12 16 1 1 end" },
-        { "restart,right,right",              "0; right; over" },
+        { "restart",                          "0; right; 1  1  1 12 1  13  13  1 1 end" },
+        { "restart,up",                       "0; right; 1  1  1 12 1  13  13  1 1 end" },
+        { "restart,down",                     "0; right; 1  1  1 12 1  13  13  1 1 end" },
+        { "restart,right",                    "0; right; 1  1  1 12 1  14  13  1 1 end" },
+        { "restart,right,right",              "0; right; 1  1  1 12 1  14  14  1 1 end" },
+        { "restart,right,right,right",        "0; right; 1  1  1 1  12 14  14  1 1 end" },
       };
 
-      DoTests("", variations, template, tests);
+      DoTests("", "", template, tests);
     }
 
+    // use ellipsis to fill a row
     [TestMethod]
     public void EllipsisFill() {
       var template =
-         "(rul):[>p|...|]->[>p|...|r]" +
+         "(rul):[ > p | ... | ] -> [ > p | ... | r ]" +
         "@(lev):P...;....;...." +
         "@(win):";
       var tests = new string[,] {
@@ -180,28 +181,7 @@ namespace PuzzLangTest {
       DoTests("", "", template, tests);
     }
 
-    [TestMethod]
-    public void BasicLoop() {
-      var template =
-         "(rul):right[>p|o]->[>p|>o];" +
-                "startloop;" +
-                "right[>r|r]->[>r|>r];" +
-                "right[>r|r]->[>r|>r];" +
-                "right[>b|b]->[>b|>b];" +
-                "right[>r|b]->[>r|>b];" +
-                "right[>b|r]->[>b|>r];" +
-                "endloop;" +
-        "@(lev):..PBRR..";
-      var tests = new string[,] {
-        { "restart",                          "0; right; 1 1 12 14 13 13 1 1 end" },
-        { "restart,right",                    "0; right; 1 1 1 12 14 13 13 1 end" },
-        { "restart,right,right",              "0; right; 1 1 1 1 12 14 13 13 end" },
-        { "restart,right,right,right",        "0; right; 1 1 1 1 12 14 13 13 end" },
-      };
-
-      DoTests("", "", template, tests);
-    }
-
+    // use ellipsis to drag from far to near
     [TestMethod]
     public void EllipsisDrag() {
       var template =
@@ -287,6 +267,28 @@ namespace PuzzLangTest {
         { "restart,down,right,left",          "14; right; 1  16 1  12 1  15 1  end" },
         { "restart,down,right,up",            "14; right; 1  16 1  1  1  12 15  end" },
         { "restart,down,right,down",          "14; right; 1  16 1  1  1  12 15  end" },
+      };
+
+      DoTests("", "", template, tests);
+    }
+
+    [TestMethod]
+    public void BasicLoop() {
+      var template =
+         "(rul):right[>p|o]->[>p|>o];" +
+                "startloop;" +
+                "right[>r|r]->[>r|>r];" +
+                "right[>r|r]->[>r|>r];" +
+                "right[>b|b]->[>b|>b];" +
+                "right[>r|b]->[>r|>b];" +
+                "right[>b|r]->[>b|>r];" +
+                "endloop;" +
+        "@(lev):..PBRR..";
+      var tests = new string[,] {
+        { "restart",                          "0; right; 1 1 12 14 13 13 1 1 end" },
+        { "restart,right",                    "0; right; 1 1 1 12 14 13 13 1 end" },
+        { "restart,right,right",              "0; right; 1 1 1 1 12 14 13 13 end" },
+        { "restart,right,right,right",        "0; right; 1 1 1 1 12 14 13 13 end" },
       };
 
       DoTests("", "", template, tests);
@@ -392,11 +394,11 @@ namespace PuzzLangTest {
         { "reset,right,right,right,down,right", "12; right; 1 1  1   12 13 1 end" },
       };
 
-      DoTests("Singles", "", template, tests);
+      DoTests("Rigid", "", template, tests);
     }
 
     // left just pushes, right sends blue to edge
-    // note: tested without pause on again
+    // TODO: test with pause on again
     [TestMethod]
     public void CommandAgain() {
       var template =
@@ -412,6 +414,7 @@ namespace PuzzLangTest {
         { "reset,left,left",        "0; right; 1 1 1 15 1  12 1  1  13 1  1  1  1  end" },
         { "reset,right",            "0; right; 1 1 1 1  13 1  1  12 13 1  1  1  1  end" },
         { "reset,right,right",      "0; right; 1 1 1 1  13 1  1  12 1  1  1  1  14 end" },
+        { "reset,right,right,undo", "0; right; 1 1 1 1  13 1  1  12 13 1  1  1  1  end" },
       };
 
       DoTests("", "", template, tests);
@@ -452,7 +455,56 @@ namespace PuzzLangTest {
     }
 
     [TestMethod]
-    public void StartupRules() {
+    public void CreateByMask() {
+      var template =
+         "(obj):Background;black;;PR;white;;PL;grey;;R;RED;;B;BLUE;;G;green;;Y;yellow;;K;Pink;;" +
+        "@(leg):. = Background;PLAYER=PR or PL;P = PR;" +
+        "@(rul):[ left player  ] -> [ left PL ];" +
+               "[ right player ] -> [ right PR ];" +
+        "@(lev):..p..;" +
+        "@(win):no player;";
+      ;
+      var tests = new string[,] {
+        { "reset",                          "0; right; 1  1  12 1  1  end" },
+        { "reset,right",                    "0; right; 1  1  1  12 1  end" },
+        { "reset,right,left",               "0; right; 1  1  13 1  1  end" },
+        { "reset,right,left,left",          "0; right; 1  13 1  1  1  end" },
+        { "reset,left",                     "0; right; 1  13 1  1  1  end" },
+        { "reset,left,left",                "0; right; 13 1  1  1  1  end" },
+        { "reset,left,right",               "0; right; 1  1  12 1  1  end" },
+        // old behaviour -- delete
+        //{ "reset",                          "0; right; 1 1  12 1  1  end" },
+        //{ "reset,right",                    "0; right; 1 1  1  12 1  end" },
+        //{ "reset,right,left",               "0; right; 1 1  1  13 1  end" },
+        //{ "reset,right,left,left",          "0; right; 1 1  13 1  1  end" },
+        //{ "reset,left",                     "0; right; 1 1  13 1  1  end" },
+        //{ "reset,left,left",                "0; right; 1 13 1  1  1  end" },
+        //{ "reset,left,right",               "0; right; 1 1  12 1  1  end" },
+      };
+
+      DoTests("", "", template, tests);
+    }
+
+    [TestMethod]
+    public void BasicWin() {
+      var template =
+         "(rul):[>p|r]->[>p|>r]" +
+        "@(lev):..P.Y.." +
+        "@(win):{0}";
+      var variations =
+        "all p on y; some p on y; all y on p; some y on p; " +
+        "all p on o; some p on o; all o on p; some o on p";
+      var tests = new string[,] {
+        { "restart",                          "0; right; 1 1 12 1 16 1 1 end" },
+        { "restart,right",                    "0; right; 1 1 1 12 16 1 1 end" },
+        { "restart,right,right",              "0; right; over" },
+      };
+
+      DoTests("", variations, template, tests);
+    }
+
+    [TestMethod]
+    public void SettingRunRules() {
       var template =
         "(pre):run_rules_on_level_start;" +
         "@(rul):[ r | ]-> [ b | ]      ;" +
@@ -466,6 +518,27 @@ namespace PuzzLangTest {
         { "reset,right,restart",            "0; right; 1 12 1  14 1  end" },
         { "reset,right,right",              "0; right; 1 1  1  12 14 end" },
         { "reset,right,right,restart",      "0; right; 1 12 1  14 1  end" },
+      };
+
+      DoTests("", "", template, tests);
+    }
+
+    [TestMethod]
+    public void SettingPlayerMove() {
+      var template =
+        "(pre):require_player_movement;" +
+        "@(rul):[ b ]-> [ right b ];" +
+        "@(lev):.b....p.r.;" +
+        "@(win):;";
+      var tests = new string[,] {
+        { "",                               "0; right; 1 14 1  1 1 1 12 1  13 1  end" },
+        // test that non-player movement still happens
+        { "reset,tick",                     "0; right; 1 1 14  1 1 1 12 1  13 1  end" },  // non-player ok
+        //{ "reset,tick",                     "0; right; 1 14 1  1 1 1 12 1  13 1  end" },
+        { "reset,right",                    "0; right; 1 1  14 1 1 1 1 12  13 1  end" },  // move ok
+        { "reset,right",                    "0; right; 1 1  14 1 1 1 1 12  13 1  end" },  // cancelled
+        { "reset,right,up",                 "0; right; 1 1  14 1 1 1 1 12  13 1  end" },  // cancelled
+        { "reset,right,left",               "0; right; 1 1  1 14 1 1 12 1  13 1  end" },  // move ok
       };
 
       DoTests("", "", template, tests);
