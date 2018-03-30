@@ -1,0 +1,75 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProductVersion>8.0.30703</ProductVersion>
+    <SchemaVersion>2.0</SchemaVersion>
+    <ProjectGuid>{1FC19ADF-446F-4118-8189-C25AADF12397}</ProjectGuid>
+    <OutputType>Library</OutputType>
+    <AppDesignerFolder>Properties</AppDesignerFolder>
+    <RootNamespace>Pegasus.Common</RootNamespace>
+    <AssemblyName>Pegasus.Common</AssemblyName>
+    <TargetFrameworkVersion>v3.5</TargetFrameworkVersion>
+    <FileAlignment>512</FileAlignment>
+    <TargetFrameworkProfile />
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>bin\Debug\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+    <DocumentationFile>bin\Debug\Pegasus.Common.xml</DocumentationFile>
+    <CodeAnalysisRuleSet>BasicCorrectnessRules.ruleset</CodeAnalysisRuleSet>
+    <RunCodeAnalysis>true</RunCodeAnalysis>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
+    <OutputPath>bin\Release\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+    <DocumentationFile>bin\Release\Pegasus.Common.xml</DocumentationFile>
+    <CodeAnalysisRuleSet>BasicCorrectnessRules.ruleset</CodeAnalysisRuleSet>
+    <RunCodeAnalysis>false</RunCodeAnalysis>
+  </PropertyGroup>
+  <PropertyGroup>
+    <SignAssembly>false</SignAssembly>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="System" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="CacheKey.cs" />
+    <Compile Include="Cursor.cs" />
+    <Compile Include="Highlighting\HighlightedSegment{T}.cs" />
+    <Compile Include="Highlighting\HighlightRuleCollection{T}.cs" />
+    <Compile Include="Highlighting\HighlightRule{T}.cs" />
+    <Compile Include="Highlighting\SyntaxHighlighter{T}.cs" />
+    <Compile Include="ILexical.cs" />
+    <Compile Include="IParseResult{T}.cs" />
+    <Compile Include="LexicalElement.cs" />
+    <Compile Include="ListNode.cs" />
+    <Compile Include="ListNode{T}.cs" />
+    <Compile Include="ParseDelegate.cs" />
+    <Compile Include="ParseResult{T}.cs" />
+    <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Tracing\DiagnosticsTracer.cs" />
+    <Compile Include="Tracing\ITracer.cs" />
+    <Compile Include="Tracing\NullTracer.cs" />
+    <Compile Include="Tuple.cs" />
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
+    <PropertyGroup>
+      <ErrorText>This project references NuGet package(s) that are missing on this computer. Use NuGet Package Restore to download them.  For more information, see http://go.microsoft.com/fwlink/?LinkID=322105. The missing file is {0}.</ErrorText>
+    </PropertyGroup>
+  </Target>
+  <PropertyGroup>
+    <PostBuildEvent>copy $(TargetFileName) $(SolutionDir)\UnityPlayer\Assets</PostBuildEvent>
+  </PropertyGroup>
+</Project>

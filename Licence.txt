@@ -1,0 +1,17 @@
+The Polyomino Free Software Licence
+
+This is open source software and it is free, in both senses. You are free to 
+download it, use it or modify it and to create games with it. You may also 
+distribute this software or your games created with it or use it to offer services 
+to others provided that:
+
+1. You do so on the same terms as you received it, by including a copy of this licence
+2. You retain in the source code or other materials all copyright and attribution notices
+3. Any such distribution or services are also free of charge.
+
+Open source is recommended, but not required as long as the game is free and 
+distribution or services are on non-commercial terms.
+
+Since games depend on content the rules apply not just to the program code 
+and the game scripts but also to every image, icon, font or sound 
+clip that is part of the game. Free means free.

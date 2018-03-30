@@ -48,7 +48,6 @@ artifacts/
 *_p.c
 *_i.h
 *.ilk
-*.meta
 *.obj
 *.pch
 *.pdb
@@ -240,3 +239,13 @@ ModelManifest.xml
 
 # FAKE - F# Make
 .fake/
+/Keep/jsonconvert-orig
+/Keep
+/Work/z
+*.diagsession
+/Unity/Library
+*.dll
+*.dll.meta
+/Unity/Temp
+/UnityPlayer/Library
+/UnityPlayer/Temp
