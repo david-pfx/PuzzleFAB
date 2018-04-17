@@ -1059,12 +1059,12 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   m_Content: {fileID: 893563720}
   m_Horizontal: 0
-  m_Vertical: 0
+  m_Vertical: 1
   m_MovementType: 2
   m_Elasticity: 0.1
   m_Inertia: 1
   m_DecelerationRate: 0.135
-  m_ScrollSensitivity: 20
+  m_ScrollSensitivity: 50
   m_Viewport: {fileID: 842804433}
   m_HorizontalScrollbar: {fileID: 0}
   m_VerticalScrollbar: {fileID: 962790198}
@@ -2374,9 +2374,9 @@ GameObject:
   m_Component:
   - component: {fileID: 2128270278}
   - component: {fileID: 2128270280}
-  - component: {fileID: 2128270279}
   - component: {fileID: 2128270281}
   - component: {fileID: 2128270282}
+  - component: {fileID: 2128270283}
   m_Layer: 0
   m_Name: MainController
   m_TagString: Untagged
@@ -2397,26 +2397,6 @@ Transform:
   m_Father: {fileID: 0}
   m_RootOrder: 1
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &2128270279
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_PrefabParentObject: {fileID: 0}
-  m_PrefabInternal: {fileID: 0}
-  m_GameObject: {fileID: 2128270277}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: f67a6317d89b9044e8fd6e9a2397757a, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  GamesDirectory: games
-  GistFile: Gists.txt
-  StartupScript: {fileID: 4900000, guid: 381efa6a7003e554d8d486771cf2b006, type: 3}
-  BackgroundColour: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
-  ForegroundColour: {r: 0, g: 0, b: 1, a: 1}
-  VerboseLogging: 1
-  AgainInterval: 0.25
-  RealtimeInterval: 0.25
-  DefaultSound: {fileID: 0}
 --- !u!114 &2128270280
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2432,7 +2412,18 @@ MonoBehaviour:
     type: 2}
   TilePrefab: {fileID: 1394552264192560, guid: 0c2474a1f7544544a9517c5861458fae, type: 2}
   AudioSource: {fileID: 582970741}
+  DefaultSound: {fileID: 8300000, guid: 47fcb70656003bd4ba6e7d7429c59713, type: 3}
+  UserPuzzlesDirectory: User Puzzles,Test Puzzles,Other Puzzles
+  BuiltinPuzzlesDirectory: Basic Puzzles,Advanced Puzzles,New Puzzles
+  Gists: {fileID: 4900000, guid: 36853cb336c1e8d47b07d3273acfc0ce, type: 3}
+  GistFile: User Gists.txt
+  StartupScript: SimpleBlockPushing
+  BackgroundColour: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
+  ForegroundColour: {r: 0, g: 0, b: 1, a: 1}
+  AgainInterval: 0.25
+  RealtimeInterval: 0.25
   BoardScale: 0.9
+  VerboseLogging: 0
   Noisy: 2
 --- !u!114 &2128270281
 MonoBehaviour:
@@ -2457,3 +2448,14 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   GistApi: https://api.github.com/gists/
+--- !u!114 &2128270283
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_PrefabParentObject: {fileID: 0}
+  m_PrefabInternal: {fileID: 0}
+  m_GameObject: {fileID: 2128270277}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 965c03f83ead74c49b3aaff757b5ae34, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 

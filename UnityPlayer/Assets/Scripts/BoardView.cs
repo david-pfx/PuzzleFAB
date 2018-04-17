@@ -16,20 +16,19 @@ using UnityEngine;
 using PuzzLangLib;
 
 public class BoardView : MonoBehaviour {
-  public Vector3 Location;
+  public Vector3 Position;
   public GameObject TilePrefab;
 
   GameModel _model { get { return _main.Model; } }
-  MainController _main;
+  MainController _main { get { return MainController.Instance; } }
   SpriteRenderer _renderer;
-  List<GameObject> _knownobjects = new List<GameObject>();
+  List<GameObject> _tiles = new List<GameObject>();
 
   void Start() {
-    _main = FindObjectOfType<MainController>();
     // set size to cover given area
     _renderer = GetComponent<SpriteRenderer>();
     var size = _renderer.sprite.bounds.size;
-    var scale = Math.Max(Location.x / size.x, Location.y / size.y);
+    var scale = Math.Max(Position.x / size.x, Position.y / size.y);
     transform.localScale = new Vector3(scale, scale, 0);  // FIXME
   }
 
@@ -46,41 +45,58 @@ public class BoardView : MonoBehaviour {
   }
 
   bool _visible = false;
+  TileView _lasttileview = null;
+
   void SetVisible(bool visible) {
     if (visible != _visible) {
       _renderer.enabled = visible;
-      _renderer.color = _main.Items.BackgroundColour;
+      _renderer.color = _main.BackgroundColour;
       _visible = visible;
     }
   }
 
-  internal void CreateTiles(Vector3Int layout, float scale, int levelwidth, GameObject tileprefab) {
+  // find the coords of cell containing a point
+  internal int? FindCellIndex(Vector2 point) {
+    if (_lasttileview != null && _lasttileview.Rect.Contains(point))
+      return _lasttileview.CellIndex.x;
+    foreach (var tile in _tiles) {
+      var tileview = tile.GetComponent<TileView>();
+      if (tileview.Rect.Contains(point)) {
+        _lasttileview = tileview;
+        return tileview.CellIndex.x;
+      }
+    }
+    _lasttileview = null;
+    return null;
+  }
+
+internal void CreateTiles(Vector3Int layout, float scale, int levelwidth, GameObject tileprefab) {
     // create same order as level, from top left back
     var origin = new Vector3(-layout.x / 2.0f + 0.5f, -layout.y / 2.0f + 0.5f, 0f) * scale;
-    var levelindex = 0;
+    var cellindex = 0;
     for (int y = layout.y - 1; y >= 0; --y) {
       for (int x = 0; x < layout.x; x++) {
         for (int z = 1; z <= layout.z; z++) {
           var tile = Instantiate(tileprefab);
           var tileview = tile.GetComponent<TileView>();
-          tileview.Location = new Vector3(origin.x + scale * x, origin.y + scale * y, origin.z - z / 10.0f);
-          tileview.Size = new Vector2(scale, scale);
-          tileview.LevelIndex = new Vector2Int(levelindex + x, z);
-          _knownobjects.Add(tile);
+          tileview.Setup(new Vector3(origin.x + scale * x, origin.y + scale * y, origin.z - z / 10.0f),
+            new Vector2(scale, scale), 
+            new Vector2Int(cellindex + x, z));
+          _tiles.Add(tile);
         }
       }
-      levelindex += levelwidth;
+      cellindex += levelwidth;
     }
     Util.Trace(1, ">[CT done {0}]", layout.x * layout.y * layout.z);
   }
 
   // destroy board and all objects on it
   internal void DestroyTiles() {
-    if (_knownobjects.Count > 0) {
-      Util.Trace(1, "Destroy board count={0}", _knownobjects.Count);
-      foreach (var obj in _knownobjects)
+    if (_tiles.Count > 0) {
+      Util.Trace(1, "Destroy board count={0}", _tiles.Count);
+      foreach (var obj in _tiles)
         Destroy(obj);
-      _knownobjects.Clear();
+      _tiles.Clear();
     }
   }
 

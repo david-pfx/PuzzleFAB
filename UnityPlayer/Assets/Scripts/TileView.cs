@@ -12,22 +12,43 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using PuzzLangLib;
 
 public class TileView : MonoBehaviour {
-  public Vector2Int LevelIndex;
-  public Vector3 Location;
-  public Vector2 Size;
+  public GameObject TileText;
 
-  MainController _main;
+  MainController _main { get { return MainController.Instance; } }
+  ModelInfo _modelinfo { get { return _main.ModelInfo; } }
+  GameDef _def { get { return _main.GameDef; } }
+
+  // puzzle cell index to display
+  internal Vector2Int CellIndex;
+  // rectangle for hit testing
+  internal Rect Rect;
+
+  enum DisplayMode { None, Disable, Sprite, Text };
   SpriteRenderer _renderer;
-  Sprite _sprite = null;
+  TextMesh _textmesh;
+  Vector3 _position;
+  Vector2 _size;
+  int _objectid = 0;
+  DisplayMode _mode = DisplayMode.None;
+  bool _visible = false;
 
+  internal void Setup(Vector3 position, Vector2 size, Vector2Int cellindex) {
+    _position = position;
+    _size = size;
+    CellIndex = cellindex;
+  }
+  
   // publics need to be set before this gets called
   void Start() {
-    _main = FindObjectOfType<MainController>();
     _renderer = GetComponent<SpriteRenderer>();
-    transform.localPosition = Location;
+    _textmesh = TileText.GetComponent<TextMesh>();
+    transform.localPosition = _position;
+    Rect = new Rect(_position.x - _size.x / 2, _position.y - _size.y / 2, _size.x, _size.y);
     SetSprite(true);
+    SetVisible(false);
   }
 
   // update our state
@@ -35,6 +56,7 @@ public class TileView : MonoBehaviour {
     switch (_main.GameState) {
     case GameState.Level:
       SetSprite();
+      SetVisible(true);
       break;
     default:
       SetVisible(false);
@@ -42,27 +64,40 @@ public class TileView : MonoBehaviour {
     }
   }
 
-  bool _visible = false;
+  // control visibility
   void SetVisible(bool visible) {
     if (visible != _visible) {
-      _renderer.enabled = visible;
+      _textmesh.gameObject.SetActive(visible && _mode == DisplayMode.Text);
+      _renderer.enabled = (visible && _mode == DisplayMode.Sprite);
       _visible = visible;
     }
   }
 
+  // use model to find the object to display, or not
   void SetSprite(bool force = false) {
-    var sprite = _main.GetSprite(LevelIndex);
-    if (force || sprite != _sprite) {
-      _renderer.sprite = sprite;
-      if (sprite != null) {
-        if (LevelIndex.x == _main.Model.CurrentLevel.Length - 1) Util.Trace(2, ">SetSprite {0}", LevelIndex);
-        var cursize = sprite.bounds.size;
-        var scale = Math.Max(Size.x / cursize.x, Size.y / cursize.y);
-        transform.localScale = new Vector3(scale, scale, 0);
-      }
-      _sprite = sprite;
-    }
-    SetVisible(sprite != null);
-  }
+    var objid = _main.GetObjectId(CellIndex);
+    if (!force && objid == _objectid) return;
+    var puzzobj = (objid == 0) ? null : _def.GetObject(objid);
+    var sprite = _modelinfo.GetSprite(objid);
 
+    // Display either text or sprite -- cannot fix render order for both!
+    if (puzzobj != null && puzzobj.Text != null) {
+      _textmesh.text = puzzobj.Text;
+      _textmesh.color = _modelinfo.ColorFromIndex(puzzobj.TextColour);
+      var scale = _size.y;
+      _textmesh.gameObject.transform.localScale = new Vector3(scale, scale, 1);
+      _mode = DisplayMode.Text;
+    } else if (sprite != null) {
+      if (CellIndex.x == _main.Model.CurrentLevel.Length - 1) Util.Trace(2, ">SetSprite {0}", CellIndex);
+      var cursize = sprite.bounds.size;
+      var scale = Math.Max(_size.x / cursize.x, _size.y / cursize.y);
+      transform.localScale = new Vector3(scale, scale, 0);
+      _renderer.sprite = sprite;
+      _mode = DisplayMode.Sprite;
+    } else {
+      _mode = DisplayMode.Disable;
+    }
+    _objectid = objid;  // no repeat unless object changes
+    _visible = false;   // trigger update
+  }
 }

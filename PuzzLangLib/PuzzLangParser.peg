@@ -31,31 +31,44 @@ Section
 
 //------------------------------------------------------------------------------
 PreludeSection = ( Setting / EOLC )*
-Setting = v:SettingName w:AnyText? EOLC { DefSetting(state,v,Single(w)) }
+Setting 
+    = v:SettingName w:AnyText EOLC { DefSetting(state,v,w) }
+    / v:SettingName EOLC { DefSetting(state,v,"true") }
+    / "no"i v:SettingName EOLC { DefSetting(state,v,"false") }
 
 //------------------------------------------------------------------------------
 ObjectSection 
-    = OBJECTS ( EOLC* !MARKER ObjectLine )*
+    = OBJECTS ( EOLC* !SectionStart ObjectLine )*
 ObjectLine 
-    = WSC v:CanDefine w:LEVELCHAR? EOLX
-      x:ColourExp+ EOLX EOLC*       // blank line(s) permitted before sprite lines
-      y:SpriteLine* { DefObject(state,v,Single(w),x,y) }
-// sprite lines at least 5 in length -- ambiguous with all numeric ident for next object
+    = WSC v:CanDefine w:Glyph? x:Justify* y:FloatNumber? EOLX
+      z:ColourExp+ EOLX EOLC*       // blank line(s) permitted before sprite lines
+      a:MessageLine? b:SpriteLine* { DefObject(state,v,Single(w),x,Single(y),z,Single(a),b) }
+MessageLine
+    = MESSAGE v:AnyText EOLW { v }
+
+//ObjectLine 
+//    = WSC v:CanDefine w:Glyph? x:Justify* y:FloatNumber? EOLX
+//      z:ColourExp+ EOLX EOLC*       // blank line(s) permitted before sprite lines
+//      zz:ContentLines { DefObject(state,v,Single(w),x,Single(y),z,zz) }
+//ContentLines<IList<string>>
+//    = MESSAGE v:AnyText EOLW { new List<string> { "?" + v } }
+//    / v:SpriteLine* { v }
+
 SpriteLine 
-    = v:SpriteChar<5,> EOLC { String.Concat(v.ToArray()) }       // backtrack here to next object  // .NET 3.5
+    = v:SpriteChar<2,> EOLC { String.Concat(v.ToArray()) }       // backtrack here to next object
 ColourExp 
     = WSC v:ColourValue &{ IsColour(v) } { v }
     / WSC v:ColourValue #error{ $"colour expected: '{v}'" }
 
 //------------------------------------------------------------------------------
 LegendSection 
-    = LEGEND ( EOLC* !MARKER LegendLine )*
+    = LEGEND ( EOLC* !SectionStart LegendLine )*
 LegendLine 
     = WSC v:IdOrGlyph WSC EQ w:DefinedExp<1,,WSO OR> EOLC { DefLegend(v,w,"or") }
     / WSC v:IdOrGlyph WSC EQ w:DefinedExp<1,,WSO AND> EOLX { DefLegend(v,w,"and") }
 
 //------------------------------------------------------------------------------
-SoundSection = SOUNDS ( EOLC* !MARKER SoundLine )*
+SoundSection = SOUNDS ( EOLC* !SectionStart SoundLine )*
 SoundLine
     = WSC v:Defined? 
         w:(SoundTriggerIdent / e:Token #error{ $"sound word expected: '{e}'" }) 
@@ -64,12 +77,12 @@ SoundLine
         EOLX { DefSound(Single(v),w,x,y) }
 
 //------------------------------------------------------------------------------
-CollisionLayerSection = COLLISIONLAYERS ( EOLC* !MARKER CollisionLine )*
+CollisionLayerSection = COLLISIONLAYERS ( EOLC* !SectionStart CollisionLine )*
 CollisionLine 
     = v:( (w:DefinedExp CMA?) { w } )+ EOLX { DefCollision(state,v) }
 
 //------------------------------------------------------------------------------
-RuleSection = RULES ( EOLC* !MARKER RuleLine )*
+RuleSection = RULES ( EOLC* !SectionStart RuleLine )*
 RuleLine 
     = WSC v:RULELOOP EOLX { Loop(state,v) }
     / WSC v:RulePrefixIdent* w:RuleSeq* RAexp x:RuleSeq* y:RuleEnd* EOLX { DefRule(state,v,w,x,y) }
@@ -97,7 +110,7 @@ RBexp = RB / #error{ "right bracket expected" }
 EOLX = EOLC / v:AnyText #error{ $"end of line expected: '{v}'" }
 
 //------------------------------------------------------------------------------
-WinConditionSection = WINCONDITIONS ( EOLC* !MARKER WinLine )*
+WinConditionSection = WINCONDITIONS ( EOLC* !SectionStart WinLine )*
 WinLine 
     = WSC v:WinActionExp w:DefinedExp ON x:DefinedExp EOLX { DefWinCondition(v,w,x) }
     / WSC v:WinActionExp w:DefinedExp                 EOLX { DefWinCondition(v,w,null) }
@@ -106,13 +119,16 @@ WinActionExp
     / v:Ident #error{ $"win action expected: {v}" }
 
 //------------------------------------------------------------------------------
-LevelSection = LEVELS ( EOLC* !MARKER Level )*
+LevelSection = LEVELS ( EOLC* !SectionStart Level )*
 Level 
     = MESSAGE v:AnyText? EOLW { DefMessage(Single(v)) }
+    / LegendLine
     / v:LevelLine+ { DefLevel(state,v) }
 LevelLine = v:(!LP LEVELCHAR)+ EOLW { String.Concat(v.ToArray()) }  // .NET 3.5
 
 //------------------------------------------------------------------------------
+
+// complex tokens
 
 CanDefine
     = v:IdOrGlyph !{ IsDefined(v) } { v }
@@ -123,45 +139,50 @@ DefinedExp
 Defined
     = v:IdOrGlyph &{ IsDefined(v) } { v }
 
-OBJECTS			= MARKER v:"objects"i           EOLC MARKER { v }
-LEGEND			= MARKER v:"legend"i            EOLC MARKER { v }
-SOUNDS			= MARKER v:"sounds"i            EOLC MARKER { v }
-COLLISIONLAYERS = MARKER v:"collisionlayers"i   EOLC MARKER { v }
-RULES			= MARKER v:"rules"i             EOLC MARKER { v }
-WINCONDITIONS	= MARKER v:"winconditions"i     EOLC MARKER { v }
-LEVELS			= MARKER v:"levels"i            EOLC MARKER { v }
-
 SettingName = v:Ident &{ IsSetting(v) } { v }
 RulePrefixIdent = v:( Ident / . ) WSO &{ IsRulePrefix(v) } { v }  // includes '+'
 RuleDirectionIdent = v:Ident &{ IsRuleDirection(v) } { v }
 MoveDirectionIdent = v:( Ident / . ) WSO &{ IsMoveDirection(v) } { v } // includes '>' etc
 CommandIdent =  v:Ident &{ IsRuleCommand(v) } { v }
 SoundTriggerIdent =  v:Ident &{ IsSoundTrigger(v) } { v }
+Justify = v:Ident &{ IsJustify(v) } { v }
 
-RULELOOP
-    = v:( "startloop"i / "endloop"i ) IDX { v }
+// simple tokens
+ColourValue = v:( HexNumber / "" Letter+ ) WSC { v }
+Token = "" LEVELCHAR*
+Glyph = v:LEVELCHAR IDX { v }
+IdOrGlyph = v:( IdChar IdChar* / LEVELCHAR ) WSC { v }
+Ident = v:( IdChar IdChar* ) WSC { v }
+AnyText = v:("" ( !CC . )+ ) { v.Trim() }
+HexNumber = "#" HexDigit+ 
+FloatNumber = v:( Digit+ "." Digit+ / "" Digit+ ) IDX { v }
 
+SectionStart = OBJECTS / LEGEND / SOUNDS / COLLISIONLAYERS / RULES / WINCONDITIONS / LEVELS
+
+// reserved words
+OBJECTS			= v:"objects"i           EOLC { v }
+LEGEND			= v:"legend"i            EOLC { v }
+SOUNDS			= v:"sounds"i            EOLC { v }
+COLLISIONLAYERS = v:"collisionlayers"i   EOLC { v }
+RULES			= v:"rules"i             EOLC { v }
+WINCONDITIONS	= v:"winconditions"i     EOLC { v }
+LEVELS			= v:"levels"i            EOLC { v }
+RULELOOP = v:( "startloop"i / "endloop"i ) IDX { v }
 MESSAGE = "message"i IDX
 ON = "on"i IDX
 AND = "and"i IDX
 OR = "or"i IDX
 NO = "no"i IDX
 
-ColourValue = v:( "#" HexDigit+ / "" Letter+ ) WSC { v }
-Token = "" LEVELCHAR*
-IdOrGlyph = v:( IdChar IdChar* / LEVELCHAR ) WSC { v }
-Ident = v:( IdChar IdChar* ) WSC { v }
-AnyText = v:("" ( !CC . )+ ) { v.Trim() }
-IDX = !IdChar SP* { "" }            // end of ident possibly followed by WS (discarded)
-
 // Various kinds of whitespace
 //CommentInline = SP* "//" (!CC .)*
 CommentBlock = SP* LP ( !RP ( &LP CommentBlock / . ) )* RP
-MARKER = "===" "="* EOLW
+CommentLine = SP* "==" ( !CC . )* CR? LF
+
 WSC = CommentBlock* SP* { "" }      // wherever optional whitespace permitted (discarded)
 EOLC = CommentBlock* EOLW { "" }    // end of line, comment allowed (discarded)
-EOLW = SP* CR? LF { Eol(state) }    // end of line, comment not allowed (discarded)
-
+EOLW = SP* CR? LF CommentLine* { Eol(state) }    // end of line, comment not allowed (discarded)
+IDX = !IdChar SP* { "" }            // end of ident possibly followed by WS (discarded)
 
 // character sets (not tokens)
 IdChar = Letter / Digit / IdCharX

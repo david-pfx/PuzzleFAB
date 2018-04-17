@@ -27,16 +27,15 @@ public class UiManager : MonoBehaviour {
   public Text MessageText;
   public Text StatusText;
 
+  MainController _main { get { return MainController.Instance; } }
   internal int RestartLevelIndex;
 
-  MainController _main;
   GameModel _model { get { return _main.Model; } }
   GameDef _def { get { return _main.GameDef; } }
   EnablePanel _enable = EnablePanel.None;
 
   // Use this for initialization
   void Start() {
-    _main = FindObjectOfType<MainController>();
     TitleText.text = "PuzzLang 1.0";
     MessageText.text = "start up";
     StatusText.text = "";
@@ -47,8 +46,9 @@ public class UiManager : MonoBehaviour {
       switch (_main.GameState) {
       case GameState.Error:
         SetVisible(EnablePanel.Main);
+        TitleText.text = _main.ModelInfo.ScriptName;
         MessageText.text = _main.Message;
-        StatusText.text = "Error! Q to Quit, S to Select";
+        StatusText.text = "Error! Q to Quit, R to Retry, S to Select";
         break;
       case GameState.Intro:
         RestartLevelIndex = 0;
@@ -57,11 +57,12 @@ public class UiManager : MonoBehaviour {
           "\nby " +
           _def.GetSetting(OptionSetting.author, "anonymous");
         var options = new List<string>();
-        if (!_def.GetSetting(OptionSetting.noaction, false)) options.Add("X to action");
-        if (!_def.GetSetting(OptionSetting.norestart, false)) options.Add("R to restart");
-        if (!_def.GetSetting(OptionSetting.noundo, false)) options.Add("Z to undo");
+        if (_def.GetSetting(OptionSetting.action, false)) options.Add("X to action");
+        if (_def.GetSetting(OptionSetting.restart, true)) options.Add("R to restart");
+        if (_def.GetSetting(OptionSetting.undo, true)) options.Add("Z to undo");
         MessageText.text =
-          "arrow keys to move\n" +
+          (_def.GetSetting(OptionSetting.arrows, false) ? "Arrow keys to move\n" : "") +
+          (_def.GetSetting(OptionSetting.click, false) ? "Click to move\n" : "") +
           options.Join(", ") + "\n" +
           "S to Select, Q to Quit\n" +
           "Escape to Pause";
@@ -69,12 +70,14 @@ public class UiManager : MonoBehaviour {
         break;
       case GameState.Message:
         SetVisible(EnablePanel.Main);
-        MessageText.text = _model.CurrentMessage;
+        TitleText.text = _def.GetSetting(OptionSetting.title, "unknown");
+      MessageText.text = _model.CurrentMessage;
         StatusText.text = "X or space to continue";
         break;
       case GameState.Pause:
         SetVisible(EnablePanel.Main);
-        var text =
+        TitleText.text = _def.GetSetting(OptionSetting.title, "unknown");
+      var text =
           "Paused on level {0}\n" +
           "\n" +
           "S to Select, Q to Quit\n" +
@@ -83,16 +86,21 @@ public class UiManager : MonoBehaviour {
         StatusText.text = "X or space to continue";
         break;
       case GameState.Select:
-      case GameState.Gist:
         SetVisible(EnablePanel.Selection);
         break;
       case GameState.GameOver:
         SetVisible(EnablePanel.Main);
-        MessageText.text =
+        TitleText.text = _def.GetSetting(OptionSetting.title, "unknown");
+      MessageText.text =
           "Game Over!\n" +
           "\n" +
           "S to Select, Q to Quit";
         StatusText.text = "X or space to replay";
+        break;
+      case GameState.Status:
+        TitleText.text = "Status";
+        // MessageText.text set elsewhere 
+        StatusText.text = "Escape to cancel";
         break;
       default:
         SetVisible(EnablePanel.None);
@@ -105,10 +113,10 @@ public class UiManager : MonoBehaviour {
       Util.Trace(2, "UI state={0} enable={1}", _main.GameState, enable);
       MainPanel.SetActive(enable == EnablePanel.Main);
 
-      MainPanel.GetComponent<Image>().color = _main.Items.BackgroundColour;
-      TitleText.color = _main.Items.ForegroundColour;
-      MessageText.color = _main.Items.ForegroundColour;
-      StatusText.color = _main.Items.ForegroundColour;
+      MainPanel.GetComponent<Image>().color = _main.BackgroundColour;
+      TitleText.color = _main.ForegroundColour;
+      MessageText.color = _main.ForegroundColour;
+      StatusText.color = _main.ForegroundColour;
 
       SelectionPanel.SetActive(enable == EnablePanel.Selection);
 

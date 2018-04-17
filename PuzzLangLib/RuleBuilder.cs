@@ -266,15 +266,15 @@ namespace PuzzLangLib {
 
       // handle patterns that match and those that do not
       foreach (var pattern in patterns)
-        CompileActionMatchups(pattern, actions.FirstOrDefault(a => a.Object.Matches(pattern.Object)), ruledir);
+        CompileActionMatchups(pattern, actions.FirstOrDefault(a => a.Symbol.Matches(pattern.Symbol)), ruledir);
       // handle actions that do not match
-      foreach (var action in actions.Where(a => !patterns.Any(p => p.Object.Matches(a.Object))))
+      foreach (var action in actions.Where(a => !patterns.Any(p => p.Symbol.Matches(a.Symbol))))
         CompileActionMatchups(null, action, ruledir);
     }
 
     void CompileActionMatchups(RuleAtom patom, RuleAtom aatom, Direction ruledir) {
-      var pobj = patom?.Object.Objects;
-      var aobj = aatom?.Object.Objects;
+      var pobj = patom?.Symbol.ObjectIds;
+      var aobj = aatom?.Symbol.ObjectIds;
       var haspobj = !(patom == null || patom.IsNegated || pobj.Count == 0);
       var hasaobj = !(aatom == null || aatom.IsNegated || aobj.Count == 0);
 
@@ -338,7 +338,7 @@ namespace PuzzLangLib {
 
     MatchOperator GetOper(RuleAtom cell) {
       return cell.IsNegated ? MatchOperator.No
-        : cell.Object.Kind == SymbolKind.Pile ? MatchOperator.All 
+        : cell.Symbol.Kind == SymbolKind.Pile ? MatchOperator.All 
         : MatchOperator.Any;
     }
 
@@ -372,11 +372,11 @@ namespace PuzzLangLib {
     void EmitFind(RuleAtom cell) {
       if (cell.Direction == Direction.None) {
         _gen.Emit(Opcodes.FindO);
-        _gen.Emit(cell.Object.Objects);
+        _gen.Emit(cell.Symbol.ObjectIds);
         _gen.Emit(GetOper(cell));
       } else {
         _gen.Emit(Opcodes.FindOM);
-        _gen.Emit(cell.Object.Objects);
+        _gen.Emit(cell.Symbol.ObjectIds);
         _gen.Emit(cell.Direction);
         _gen.Emit(GetOper(cell));
       }
@@ -385,11 +385,11 @@ namespace PuzzLangLib {
     private void EmitTest(RuleAtom cell) {
       if (cell.Direction == Direction.None) {
         _gen.Emit(Opcodes.TestON);
-        _gen.Emit(cell.Object.Objects);
+        _gen.Emit(cell.Symbol.ObjectIds);
         _gen.Emit(GetOper(cell));
       } else {
         _gen.Emit(Opcodes.TestOMN);
-        _gen.Emit(cell.Object.Objects);
+        _gen.Emit(cell.Symbol.ObjectIds);
         _gen.Emit(cell.Direction);
         _gen.Emit(GetOper(cell));
       }
@@ -398,11 +398,11 @@ namespace PuzzLangLib {
     private void EmitCheck(RuleAtom cell) {
       if (cell.Direction == Direction.None) {
         _gen.Emit(Opcodes.CheckON);
-        _gen.Emit(cell.Object.Objects);
+        _gen.Emit(cell.Symbol.ObjectIds);
         _gen.Emit(GetOper(cell));
       } else {
         _gen.Emit(Opcodes.CheckOMN);
-        _gen.Emit(cell.Object.Objects);
+        _gen.Emit(cell.Symbol.ObjectIds);
         _gen.Emit(cell.Direction);
         _gen.Emit(GetOper(cell));
       }
@@ -411,12 +411,12 @@ namespace PuzzLangLib {
     private void EmitScan(RuleAtom cell, Direction ruledir) {
       if (cell.Direction == Direction.None) {
         _gen.Emit(Opcodes.ScanODN);
-        _gen.Emit(cell.Object.Objects);
+        _gen.Emit(cell.Symbol.ObjectIds);
         _gen.Emit(ruledir);
         _gen.Emit(GetOper(cell));
       } else {
         _gen.Emit(Opcodes.ScanOMDN);
-        _gen.Emit(cell.Object.Objects);
+        _gen.Emit(cell.Symbol.ObjectIds);
         _gen.Emit(ruledir);
         _gen.Emit(cell.Direction);
         _gen.Emit(GetOper(cell));

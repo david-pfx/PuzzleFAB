@@ -45,22 +45,22 @@ namespace PuzzLangLib {
     internal static readonly ObjectSymbol Empty = new ObjectSymbol();
     internal bool IsNegated { get; private set; }           // if this is a negative test
     internal Direction Direction { get; private set; }   // direction object should be moving 
-    internal ObjectSymbol Object { get; private set; }     // object/set to match at location
+    internal ObjectSymbol Symbol { get; private set; }     // object/set to match at location
     internal RuleCommand Command { get; private set; }   // action to take if rule part succeeds
 
-    internal bool IsEllipsis { get { return Object == Ellipsis; } }
-    internal bool HasObject { get { return Object.Objects.Count > 0; } }
+    internal bool IsEllipsis { get { return Symbol == Ellipsis; } }
+    internal bool HasObject { get { return Symbol.ObjectIds.Count > 0; } }
 
     // note: object name used here, not tostring()
     public override string ToString() {
       return IsEllipsis ? "..." : Util.JoinNonEmpty(" ", IsNegated ? "no" : "", 
         Direction == Direction.None ? "" : Direction.ToString(),
-        Object.Name, Command == RuleCommand.None ? "" : Command.ToString());
+        Symbol.Name, Command == RuleCommand.None ? "" : Command.ToString());
     }
 
     internal static RuleAtom Create(bool isnegated, Direction direction, ObjectSymbol objects, RuleCommand command) {
       return new RuleAtom {
-        IsNegated = isnegated, Direction = direction, Object = objects, Command = command,
+        IsNegated = isnegated, Direction = direction, Symbol = objects, Command = command,
       };
     }
 
@@ -106,20 +106,20 @@ namespace PuzzLangLib {
   class ObjectSymbol {
     internal string Name;
     internal SymbolKind Kind;
-    internal HashSet<int> Objects = new HashSet<int>();
+    internal HashSet<int> ObjectIds = new HashSet<int>();
 
     // true if references the same objects in the same way
     internal bool IsSame(ObjectSymbol other) {
-      return Kind == other.Kind && Objects.SetEquals(other.Objects);
+      return Kind == other.Kind && ObjectIds.SetEquals(other.ObjectIds);
     }
 
     // true if groups reference at least some of the same objects
     internal bool Matches(ObjectSymbol other) {
-      return Objects.Overlaps(other.Objects);
+      return ObjectIds.Overlaps(other.ObjectIds);
     }
 
     public override string ToString() {
-      return String.Format("{0}:{1}({2})", Name, Kind, Objects.Join());
+      return String.Format("{0}:{1}({2})", Name, Kind, ObjectIds.Join());
     }
   }
 
@@ -176,7 +176,7 @@ namespace PuzzLangLib {
     }
 
     internal string SymbolName(int id) {
-      return _gamedef.Objects[id - 1].Name;  // TODO: move into GameDef?
+      return _gamedef.PuzzleObjects[id - 1].Name;  // TODO: move into GameDef?
     }
 
     internal Direction ParseDirection(string value) {
@@ -195,7 +195,7 @@ namespace PuzzLangLib {
       Logger.Assert(sym != null, name);
       if (!(sym.Kind == SymbolKind.Alias||sym.Kind == SymbolKind.Mask))
         CompileError("object '{0}' may only use OR", name);
-      return sym.Objects;
+      return sym.ObjectIds;
     }
 
     // get a set of objects ids to use as a pile
@@ -204,7 +204,7 @@ namespace PuzzLangLib {
       Logger.Assert(sym != null, name);
       if (!(sym.Kind == SymbolKind.Alias || sym.Kind == SymbolKind.Pile))
         CompileError("object '{0}' may only use AND", name);
-      return sym.Objects;
+      return sym.ObjectIds;
     }
 
     internal RulePrefix ParseRulePrefix(string value) {
@@ -223,20 +223,28 @@ namespace PuzzLangLib {
       return value.SafeEnumParse<SoundTrigger>() ?? SoundTrigger.None;
     }
 
-    // Add a named object to symbol table and object list
-    internal int AddObject(string name, int width, IList<int> grid) {
+    // Add a named sprite object to symbol table and object list
+    internal int AddObject(string name, Pair<float,float> pivot, double height, int width, IList<int> grid,
+      int textcolour, string text) {
       _symbols[name] = new ObjectSymbol {
         Name = name,
         Kind = SymbolKind.Alias,
-        Objects = new HashSet<int> { _gamedef.Objects.Count + 1 },
+        ObjectIds = new HashSet<int> { _gamedef.PuzzleObjects.Count + 1 },
       };
-      _gamedef.Objects.Add(new Object {
-        Name = name, Layer = 0, Width = width, Sprite = grid
+      _gamedef.PuzzleObjects.Add(new PuzzleObject {
+        Name = name,
+        Layer = 0,      // set later
+        Pivot = pivot,
+        Height = height,
+        Width = width,
+        Sprite = grid,
+        TextColour = textcolour,
+        Text = text,
       });
-      DebugLog("Object {0}: '{1}' {2}x{3}", 
-        _gamedef.Objects.Count, name, width, grid.Count / width);
-      Logger.WriteLine(4, "{0}", grid.Select(c=>String.Format("{0:X}",c)).Join());
-      return _gamedef.Objects.Count;
+      DebugLog("Sprite Object {0}: '{1}' {2}x{3} {4} {5} {6}",
+        _gamedef.PuzzleObjects.Count, name, width, grid.Count / width, height, pivot, text);
+      Logger.WriteLine(4, "{0}", grid.Select(c => String.Format("{0:X}", c)).Join());
+      return _gamedef.PuzzleObjects.Count;
     }
 
     // Add object group to symbol table
@@ -245,7 +253,7 @@ namespace PuzzLangLib {
       sym.Name = name;
 
       // if it's a collection of all objects then make a decision
-      if (sym.Kind == SymbolKind.Alias && sym.Objects.Count > 1)
+      if (sym.Kind == SymbolKind.Alias && sym.ObjectIds.Count > 1)
         sym.Kind = (oper == LogicOperator.And) ? SymbolKind.Pile : SymbolKind.Mask;
       
       // these are bad, otherwise use whatever we have
@@ -255,8 +263,13 @@ namespace PuzzLangLib {
       }
       _symbols[name] = sym;
       DebugLog("Define '{0}': {1} <{2}>",
-        name, sym.Kind, sym.Objects.Select(o => _gamedef.GetName(o)).Join());
+        name, sym.Kind, sym.ObjectIds.Select(o => _gamedef.GetName(o)).Join());
     }
+
+    //internal void AddTextStringDef(string name, ObjectSymbol textsym, string text) {
+    //  var textobj = _gamedef.GetObject(textsym.Objects.First()) as TextObject;
+    //  AddTextObjectDef(name, textobj.ForeColour, textobj.BackColour, textobj.Justify, textobj.Height, text);
+    //}
 
     static readonly SymbolKind[] _symbolkindlookkup = new SymbolKind[] {
       SymbolKind.Alias, SymbolKind.Mask, SymbolKind.Pile, SymbolKind.Mixed
@@ -269,10 +282,10 @@ namespace PuzzLangLib {
       if (kinds.Contains(SymbolKind.Mixed)) throw Error.Assert("stored mixed");
       var kindx = (kinds.Contains(SymbolKind.Mask) ? 1 : 0)
         + (kinds.Contains(SymbolKind.Pile) ? 2 : 0);
-      var objects = new HashSet<int>(syms.SelectMany(s => s.Objects));
+      var objects = new HashSet<int>(syms.SelectMany(s => s.ObjectIds));
       return new ObjectSymbol {
         Kind = _symbolkindlookkup[kindx],
-        Objects = objects,
+        ObjectIds = objects,
       };
     }
 
@@ -291,7 +304,7 @@ namespace PuzzLangLib {
     internal void AddLayer(IList<string> idents) {
       var symbols = CollectObjects(idents.Select(o => ParseSymbol(o)).ToList());
       var layer = ++_gamedef.LayerCount;
-      foreach (var obj in symbols.Objects)
+      foreach (var obj in symbols.ObjectIds)
         _gamedef.SetObjectLayer(obj, layer);
       Logger.WriteLine(2, "Layer {0}: {1}", layer, idents.Join());
     }
@@ -369,7 +382,7 @@ namespace PuzzLangLib {
         if (background == null) {
           CompileError("background not defined");
           _gamedef.Background = new HashSet<int> { 0 };
-        } else _gamedef.Background = background.Objects;
+        } else _gamedef.Background = background.ObjectIds;
       }
       var level = ParseLevel(lines);
       DebugLog("Level {0}: {1}x{2}x{3}", _gamedef.LevelIndex.Count, level.Height, level.Width, level.Depth);
@@ -410,25 +423,36 @@ namespace PuzzLangLib {
         }
       }
       // now fill in the background
-      for (int levindex = 0; levindex < level.Length; levindex++) {
-        // a tile with no background gets the lowest number we found on the level
-        if (!level.GetObjects(levindex).Any(o => bgobjects.Contains(o))) {
+      for (int cellindex = 0; cellindex < level.Length; cellindex++) {
+        // a tile with no background gets the lowest number found on the level
+        if (!level.GetObjects(cellindex).Any(o => bgobjects.Contains(o))) {
           var bgobj = (bgobjects.Count > 0) ? bgobjects.Min() : _gamedef.Background.Min();
-          level[levindex, _gamedef.GetLayer(bgobj)] = bgobj;
+          level[cellindex, _gamedef.GetLayer(bgobj)] = bgobj;
         }
       }
-
       return level;
     }
 
     // Check validity of data
     internal void CheckData() {
       var player = _symbols.SafeLookup("player");
-      if (player == null) CompileError("player not defined");
-      else _gamedef.Players = ParseMask("player");
-      var nolayer = _gamedef.Objects.Where(o => o.Layer == 0);
+      var clickable = _symbols.SafeLookup("clickable");
+      if (player == null && clickable == null) CompileError("must define player or clickable");
+      if (player != null) {
+        _gamedef.Players = ParseMask("player");
+        if (!_gamedef.BoolSettings.ContainsKey(OptionSetting.arrows))
+          _gamedef.BoolSettings[OptionSetting.arrows] = true;
+        if (!_gamedef.BoolSettings.ContainsKey(OptionSetting.action))
+          _gamedef.BoolSettings[OptionSetting.action] = true;
+      }
+      if (clickable != null) {
+        _gamedef.Clickables = ParseMask("clickable");
+        if (!_gamedef.BoolSettings.ContainsKey(OptionSetting.click))
+          _gamedef.BoolSettings[OptionSetting.click] = true;
+      }
+      var nolayer = _gamedef.PuzzleObjects.Where(o => o.Layer == 0);
       if (nolayer.Count() > 0)
-        CompileError("not in any layer: {0}", nolayer.Select(o=>o.Name).Join());
+        CompileError("not in any layer: {0}", nolayer.Select(o=>o.Name).Distinct().Join());
       if (_inloop) CompileError("missing endloop");
     }
 
@@ -446,6 +470,7 @@ namespace PuzzLangLib {
       _out.WriteLine("*** '{0}' at {1}: compile warning: {2}", _sourcename, _linenumber, String.Format(fmt, args));
       WarningCount++;
     }
+
   }
 
 }

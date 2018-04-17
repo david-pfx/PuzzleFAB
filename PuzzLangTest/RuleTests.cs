@@ -36,6 +36,11 @@ namespace PuzzLangTest {
         "@(win):;";
       var tests = new string[,] {
         { "restart",                          "0; right; 1 1  12 1  13 1  1 end" },
+        { "restart,action",                   "0; right; 1 1  12 1  13 1  1 end" },
+        { "restart,hover",                    "0; right; 1 1  12 1  13 1  1 end" },
+        { "restart,fire1",                    "0; right; 1 1  12 1  13 1  1 end" },
+        { "restart,fire2",                    "0; right; 1 1  12 1  13 1  1 end" },
+        { "restart,fire3",                    "0; right; 1 1  12 1  13 1  1 end" },
         { "restart,up",                       "0; right; 1 1  12 1  13 1  1 end" },
         { "restart,down",                     "0; right; 1 1  12 1  13 1  1 end" },
         { "restart,left",                     "0; right; 1 12 1  1  13 1  1 end" },
@@ -544,6 +549,37 @@ namespace PuzzLangTest {
       DoTests("", "", template, tests);
     }
 
+    [TestMethod]
+    public void InputClick() {
+      var template =
+        "(pre):hover;" +
+        "@(leg):. = Background;clickable = b or g;" +
+        "@(rul):[ left b ]-> [ r ];" +
+               "[ right b ]-> [ g ];" +
+               "[ hover b ]-> [ y ];" +
+        "@(lev):..b..g..;" +
+        "@(win):;";
+      var tests = new string[,] {
+        { "reset",                          "0; right; 1 1 14  1 1  15 1 1  end" },
+        { "reset,tick",                     "0; right; 1 1 14  1 1  15 1 1  end" },
+        { "reset,left 0",                   "0; right; 1 1 14  1 1  15 1 1  end" },
+        { "reset,left 1",                   "0; right; 1 1 14  1 1  15 1 1  end" },
+        { "reset,left 2",                   "0; right; 1 1 13  1 1  15 1 1  end" },
+        { "reset,right 0",                  "0; right; 1 1 14  1 1  15 1 1  end" },
+        { "reset,right 1",                  "0; right; 1 1 14  1 1  15 1 1  end" },
+        { "reset,right 2",                  "0; right; 1 1 15  1 1  15 1 1  end" },
+        { "reset,hover 0",                  "0; right; 1 1 14  1 1  15 1 1  end" },
+        { "reset,hover 1",                  "0; right; 1 1 14  1 1  15 1 1  end" },
+        { "reset,hover 2",                  "0; right; 1 1 16  1 1  15 1 1  end" },
+        { "reset,fire1 2",                  "0; right; 1 1 14  1 1  15 1 1  end" },
+        { "reset,fire2 2",                  "0; right; 1 1 14  1 1  15 1 1  end" },
+        { "reset,fire3 2",                  "0; right; 1 1 14  1 1  15 1 1  end" },
+        { "reset,action 2",                 "0; right; 1 1 14  1 1  15 1 1  end" },
+      };
+
+      DoTests("", "", template, tests);
+    }
+
     void DoTests(string title, string variations, string template, string[,] tests, [CallerMemberName] string method = "") {
       foreach (var variation in variations.Split(';')) {
         var setup = String.Format(template, variation);
@@ -577,7 +613,8 @@ namespace PuzzLangTest {
       var game = new StringReader(testcase.Script);
       var compiler = Compiler.Compile(testcase.Title, game, Console.Out);
       Assert.IsTrue(compiler.Success, testcase.Title);
-      compiler.Model.LoadLevel(0);
+      compiler.Model.AcceptInputs("level 0");
+      //compiler.Model.LoadLevel(0);
       return compiler.Model;
     }
   }

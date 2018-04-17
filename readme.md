@@ -1,13 +1,14 @@
 Puzzlang
 ========
 
-Puzzlang is a pattern language for abstract single-player games and puzzles, and a Unity player. 
-See http://www.polyomino.com/puzzlang.
+Puzzlang is a pattern language for abstract single-player games and puzzles, with a Unity player. 
+See [here](http://www.polyomino.com/puzzlang).
 
 Puzzlang implements a pattern language compatible with PuzzleScript, an incredibly ingenious creation of Stephen Lavelle. 
-More at http://www.polyomino.com/puzzlescript and www.puzzlescript.net.
+More [here](http://www.polyomino.com/puzzlescript) and the [puzzlescript](http://www.puzzlescript.net) site.
 Puzzlang has a compiler, a universal games engine and a player targeting Unity. 
 This in turn can be used to create players for almost any platform: Windows desktop, Linux, WebGL, Android, iOS and so on.
+You can play it [here](https://david-pfx.github.io/PuzzlangWeb/).
 
 Abstract games are those with no theme, no characters, no story, just a play area, rules and a way for players to win or lose. 
 It usually means games of perfect information such as most board and paper-and-pencil games, but it needn't stop there.
@@ -33,7 +34,7 @@ The one restriction is that if you pass Puzzlang or your games on to others you 
 free to use, free to modify and at no charge.
 Open source is recommended, but not required as long as the game is free and distribution is on non-commercial terms.
 
-For more details see http://www.polyomino.com/licence or the copy included with the software.
+For more details see [licence](http://www.polyomino.com/licence) or the copy included with the software.
 
 These terms apply to the Puzzlang source code and and to any game you distribute that includes Puzzlang licensed material.
 The demo games, images, sound clips and font assets included in the release or used by you in creating a game may have 
@@ -42,19 +43,23 @@ As well as your game being free, you need to comply with any of those terms.
 
 # Getting started
 
-## The end user way
+## The puzzle player way
+
+Just click on the [link](https://david-pfx.github.io/PuzzlangWeb/) and have fun!
+
+## The puzzle creator way
 
 Download the binary release, unzip it somewhere, run the program. 
 It should just work.
 The release contains some sample games, in the Games directory.
-This contains a selection of user-created games known to work with Puzzlang.
+This contains a selection of user-created games known to work with Puzzlang, but you can create your own.
 
 ## The developer way 
 
-1. Install Visual Studio. https://www.visualstudio.com/downloads/.
+1. Install [Visual Studio](https://www.visualstudio.com/downloads/).
 Any recent version should do, but the project is for VS 2015.
 
-1. Install Unity. https://unity3d.com/get-unity/download/archive.
+1. Install [Unity](https://unity3d.com/get-unity/download/archive/).
 Any recent version should do, but the project was built with Version 2017.3. 
 The free version is fine.
 
@@ -112,6 +117,10 @@ Enhancements
 
 The following enhancements are implemented so far.
 
+1. Mouse input events Fire1, Fire2, Fire3 and Hover, applied to any object defined as 'clickable'.
+
+1. Objects can have text sprites, either a single character or a string.
+
 1. Setting **pause_at_end_level** makes the engine wait for an extra input at the end of each level. The player uses this.
 
 1. Setting **pause_on_again** makes the engine wait for an extra input when processing an again loop. The player uses this.
@@ -122,7 +131,7 @@ The following enhancements are implemented so far.
 
 1. There is an input for **reset**, not bound to any key but used in testing.
 
-1. The player has Pause, Reset, Quit, Restart from a chosen level and Select a game.
+1. The player allows Pause, Reset, Quit, Restart from a chosen level and Select a game from multiple pages including gists.
 
 The Future
 ----------
@@ -130,7 +139,6 @@ The Future
 This release has a few minor enhancements. Other possibilities include:
 * a language macro capability
 * auto-save and restore in player
-* mouse input events
 * richer patterns, for path-following and adjacent groups.
 
 Other ideas are welcome.

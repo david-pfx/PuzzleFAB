@@ -14,49 +14,73 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Assertions;
 using PuzzLangLib;
+using DOLE;
+using System.IO;
 
 // very important state that drives the entire UI
 public enum GameState {
   None,
   Select, Intro, Pause, Quit,
   Error, Level, Message, GameOver,
-  Gist,
+  Status,
 }
 
 /// <summary>
 /// Implements main functions for getting started, loading and running games
+/// Also contains most of the settable items
 /// </summary>
 public class MainController : MonoBehaviour {
+  // settings
   public GameObject BoardPrefab;
   public GameObject TilePrefab;
   public AudioSource AudioSource;
+  public AudioClip DefaultSound;
+  public string UserPuzzlesDirectory = "Games";
+  public string BuiltinPuzzlesDirectory = "Puzzles";
+  public TextAsset Gists;
+  public string GistFile = "Gists.txt";
+  public string StartupScript;
+  public Color BackgroundColour = Color.yellow;
+  public Color ForegroundColour = Color.blue;
+  public float AgainInterval = 0.25f;
+  public float RealtimeInterval = 0.25f;
   public float BoardScale = 0.90f;
+  public bool VerboseLogging = false;
   public int Noisy = 2;
 
+  internal static MainController Instance { get; private set; }
   internal GameState GameState { get; set; }
-  internal GameModel Model { get { return _modelinfo.Model; } }
-  internal GameModelInfo ModelInfo { get { return _modelinfo; } }
-  internal GameDef GameDef { get { return _modelinfo.Model.GameDef; } }
-  internal ItemManager Items { get { return _itemmx; } }
   internal string Message { get; private set; }
+  internal GameModel Model { get { return _modelinfo.Model; } }
+  internal ModelInfo ModelInfo { get { return _modelinfo; } }
+  internal GameDef GameDef { get { return _modelinfo.Model.GameDef; } }
+  internal BoardView Board { get { return _boardview; } }
+  internal ScriptLoader ScriptLoader { get; private set; }
+  internal string AppDirectory { get; private set; }
+  internal string UserDirectory { get; private set; }
 
   UiManager _uimx;
-  ItemManager _itemmx;
-  GameModelInfo _modelinfo;
+  ModelInfo _modelinfo;
   GameObject _board;
   BoardView _boardview;
+  string _scriptname;
+  float _screentoortho;
 
-  private void Awake() {
+  void Awake() {
+    Instance = this;
     Util.MaxLoggingLevel = Noisy;
     Assert.raiseExceptions = true;
     DOLE.Logger.Level = Noisy;
   }
 
   void Start() {
+    Util.Trace(1, "Main start '{0}'", Noisy);
     _uimx = FindObjectOfType<UiManager>();
-    _itemmx = FindObjectOfType<ItemManager>();
-    _itemmx.FindAllScripts();
-    GameState = LoadScript("<startup>");
+    ScriptLoader = FindObjectOfType<ScriptLoader>();
+    AppDirectory = Path.GetDirectoryName(Application.dataPath);
+    UserDirectory = Util.Combine(AppDirectory, UserPuzzlesDirectory);
+    ScriptLoader.Setup();
+    GameState = LoadScript(StartupScript);
   }
 
   // update our state
@@ -66,6 +90,9 @@ public class MainController : MonoBehaviour {
       break;
     case GameState.Level:
       if (_board == null) CreateBoard();
+      break;
+    case GameState.Status:
+      _uimx.MessageText.text = GetStatusInfo();
       break;
     case GameState.GameOver: // todo: end level
       if (_board != null) DestroyBoard();
@@ -79,8 +106,16 @@ public class MainController : MonoBehaviour {
     }
   }
 
+  internal string GetStatusInfo() {
+    return "data={0}\napp={1}\nuser={2}\n".Fmt(Application.dataPath, AppDirectory, UserDirectory);
+  }
+
   // accessed on startup or when new script selected
-  internal GameState LoadScript(string scriptname) {
+  internal GameState LoadScript(string scriptname = null) {
+    if (scriptname == null) {
+      scriptname = _scriptname;
+      ScriptLoader.ReadScript(scriptname, true);
+    } else _scriptname = scriptname;
     Util.Trace(1, "Load script '{0}'", scriptname);
     if (_uimx != null) {
       _uimx.TitleText.text = scriptname;
@@ -91,12 +126,10 @@ public class MainController : MonoBehaviour {
   }
 
   // access by tile view -- must guard against level change
-  internal Sprite GetSprite(Vector2Int levelindex) {
-    if (_board == null) return null;
+  internal int GetObjectId(Vector2Int cellcoords) {
+    if (_board == null) return 0;
     // offset by screen index to handle zoom/flick
-    var objectid = Model.CurrentLevel[Model.ScreenIndex + levelindex.x, levelindex.y];
-    var sprite = _modelinfo.GetSprite(objectid);
-    return sprite;
+    return Model.CurrentLevel[Model.ScreenIndex + cellcoords.x, cellcoords.y];
   }
 
   internal void PlaySounds(IEnumerable<string> sounds) {
@@ -107,10 +140,10 @@ public class MainController : MonoBehaviour {
     }
   }
 
-  internal GameState ReloadScript(bool useindex) {
+  internal GameState RestartScript(bool useindex) {
     DestroyBoard();
     var newindex = useindex ? _uimx.RestartLevelIndex : 0;
-    LoadLevel(newindex);
+    AcceptInput("level {0}".Fmt(newindex));
     return (newindex == 0) ? GameState.Intro : GameState.Level;
   }
 
@@ -121,16 +154,15 @@ public class MainController : MonoBehaviour {
 
   // wrapper to handle log and sounds
   internal void AcceptInput(string input) {
-    _modelinfo.AcceptInputs(input);
+    _modelinfo.AcceptInput(input);
     Message = Model.CurrentMessage;
     PlaySounds(Model.Sounds);
   }
 
-  // wrapper to handle log and sounds
-  void LoadLevel(int levelindex) {
-    _modelinfo.LoadLevel(levelindex);
-    Message = Model.CurrentMessage;
-    PlaySounds(Model.Sounds);
+  // use boardview to find a tile give point on screen
+  internal int? FindCellIndex(Vector2 screenpoint) {
+    var point = (screenpoint - Camera.main.pixelRect.center) * _screentoortho;
+    return _boardview.FindCellIndex(point);
   }
 
   //--- impl
@@ -138,13 +170,13 @@ public class MainController : MonoBehaviour {
   bool TryCompile(string name) {
     bool ok = false;
     DestroyBoard();
-    _modelinfo = new GameModelInfo(_itemmx);
-    var script = _itemmx.ReadScript(name, false);
+    _modelinfo = new ModelInfo();
+    var script = ScriptLoader.ReadScript(name, false);
     if (script == null) Message = "Not yet loaded...";
     else if (!_modelinfo.Compile(name, script))
       Message = _modelinfo.Message;
-    else { 
-      LoadLevel(0);
+    else {
+      AcceptInput("level 0");
       ok = true;
     }
     return ok;
@@ -158,17 +190,21 @@ public class MainController : MonoBehaviour {
       GameDef.GetSetting(OptionSetting.title, "unknown"), Model.CurrentLevelIndex, level.Length, level.Depth);
     var camera = Camera.main;
     var camerasize = new Vector2(2 * camera.orthographicSize * camera.aspect, 2 * camera.orthographicSize);
+    _screentoortho = 2 * camera.orthographicSize / camera.pixelHeight;
 
     _board = Instantiate(BoardPrefab);
     _boardview = _board.GetComponent<BoardView>();
-    _boardview.Location = new Vector3(camerasize.x, camerasize.y);
+    _boardview.Position = new Vector3(camerasize.x, camerasize.y);
 
+    // the rectangle of tiles in the level
     var levelsize = new Vector3Int(level.Width, level.Height, level.Depth);
-    var layout = (_modelinfo.ScreenSize == Vector2Int.zero) ? levelsize
+    // the rectangle of tiles to be displayed
+    var displaysize = (_modelinfo.ScreenSize == Vector2Int.zero) ? levelsize
       : Vector3Int.Min(levelsize, new Vector3Int(_modelinfo.ScreenSize.x, _modelinfo.ScreenSize.y, level.Depth));
-    var scale = Math.Min(2 * camera.orthographicSize / layout.y,
-      2 * camera.orthographicSize * camera.aspect / layout.x) * BoardScale;
-    _boardview.CreateTiles(layout, scale, level.Width, TilePrefab);
+    // the size of each tile in units
+    var scale = Math.Min(camerasize.x / displaysize.x, camerasize.y / displaysize.y) * BoardScale;
+
+    _boardview.CreateTiles(displaysize, scale, level.Width, TilePrefab);
   }
 
   // destroy board and all objects on it

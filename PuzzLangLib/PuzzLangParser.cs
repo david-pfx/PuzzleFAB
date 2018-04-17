@@ -60,30 +60,39 @@ namespace PuzzLangLib {
       return null;
     }
 
-    string DefObject(Cursor cursor, string ident, string glyph, IList<string> colours, IList<string> gridlines) {
-      var badcolours = colours
-        .Where(c => !_manager.ColourParser.IsColour(c))
-        .ToList();
-      if (badcolours.Count > 0)
-        ParseError(cursor, $"colour(s) '{badcolours.Join()}' not valid");
-      var ctable = colours.Select(c => _manager.ColourParser.ParseColour(c)).ToList();
+    string DefObject(Cursor cursor, string ident, string glyph, IList<string> justify, string height, 
+      IList<string> colours, string message, IList<string> gridlines) {
+      var clist = colours.Select(c => _manager.ColourParser.ParseColour(c)).ToList();
+      var jlist = justify.Select(d => _manager.ParseDirection(d));
+      var jx = (jlist.Contains(Direction.Left) ? -1f : 0f) + (jlist.Contains(Direction.Right) ? 1f : 0f);
+      var jy = (jlist.Contains(Direction.Down) ? -1f : 0f) + (jlist.Contains(Direction.Up) ? 1f : 0f);
+      var jpivot = Pair.Create(jx, jy);
+      var nheight = (height == null) ? 1.0 : height.SafeDoubleParse();
+      if (height != null && (nheight == null || nheight <= 0))
+        ParseError(cursor, $"invalid height: {height}");
       if (gridlines.Count == 0) {
-        _manager.AddObject(ident, 1, new int[] { ctable[0] });
+        _manager.AddObject(ident, jpivot, nheight.Value, 1, new int[] { clist.First() }, clist.Last(), message);
       } else {
-        if (!(gridlines.All(s => s.Length == gridlines.Count)))
-          ParseError(cursor, $"sprite not square");
-        var maxchar = '0' + colours.Count - 1;
-        var badchar = gridlines.Join("")
-          .Where(c => c > maxchar).ToList();
-        if (badchar.Count > 0)
-          ParseError(cursor, $"sprite char(s) '{badchar.Join()}' not valid");
-        var grid = gridlines.SelectMany(s => s.Select(c => c == '.' ? -1 : ctable[c - '0'])).ToList();
-        _manager.AddObject(ident, gridlines.Count, grid);
+        var grid = ParseGrid(cursor, gridlines, clist);
+        _manager.AddObject(ident, jpivot, nheight.Value, gridlines.Count, grid, clist.Last(), message);
       }
       if (glyph != null) _manager.AddObjectDef(glyph, new List<string> { ident }, LogicOperator.None);
       return null;
     }
 
+    List<int> ParseGrid(Cursor cursor, IList<string> gridlines, List<int> clist) {
+      if (!(gridlines.All(s => s.Length == gridlines.Count)))
+        ParseError(cursor, $"sprite not square");
+      var maxchar = '0' + clist.Count - 1;
+      var badchar = gridlines.Join("")
+        .Where(c => c > maxchar).ToList();
+      if (badchar.Count > 0)
+        ParseError(cursor, $"sprite char(s) '{badchar.Join()}' not valid");
+      var grid = gridlines.SelectMany(s => s.Select(c => c == '.' ? -1 : clist[c - '0'])).ToList();
+      return grid;
+    }
+
+    //--- predicates for parsing
     bool IsColour(string value) {
       return _manager.ColourParser.IsColour(value);
     }
@@ -112,6 +121,10 @@ namespace PuzzLangLib {
     bool IsMoveDirection(string value) {
       var dir = _manager.ParseDirection(value);
       return dir != Direction.None; ;
+    }
+    bool IsJustify(string value) {
+      var dir = _manager.ParseDirection(value);
+      return dir == Direction.Left || dir == Direction.Right|| dir == Direction.Up || dir == Direction.Down;
     }
 
     string DefLegend(string ident, IList<string> objects, string andor) {

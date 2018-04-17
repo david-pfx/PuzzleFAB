@@ -9,30 +9,30 @@ using NsfxrLib;
 /// <summary>
 /// Implements a wrapper around the game model to load resources and manage access
 /// </summary>
-internal class GameModelInfo {
-  internal ItemManager _itemmx;
+internal class ModelInfo {
+  // current compiled script name
+  internal string ScriptName { get; private set; }
+  // current compiled model -- may be null
   internal GameModel Model { get { return _model; } }
   // size set by flickscreen or zoomscreen, zero if not enabled
   internal Vector2Int ScreenSize;   
-  internal string Message { get { return _message; } }
-  internal List<Sprite> _sprites = new List<Sprite>();
+  // message from model for display
+  internal string Message { get; private set; }
+
+  MainController _main { get { return MainController.Instance; } }
 
   GameModel _model = null;
+  Sprite[] _sprites;
   Dictionary<string, AudioClip> _soundlookup = new Dictionary<string, AudioClip>();
-  string _message = null;
   StringWriter _logwriter = new StringWriter();
 
-  public GameModelInfo(ItemManager itemManager) {
-    _itemmx = itemManager;
-  }
-
   internal Sprite GetSprite(int id) {
-    return (id >= 1 && id <= _sprites.Count) ? _sprites[id - 1] : null;
+    return (id >= 1 && id <= _sprites.Length) ? _sprites[id - 1] : null;
   }
 
   // get a clip from a seed or name
   internal AudioClip GetClip(string name) {
-    return _soundlookup.SafeLookup(name) ?? _itemmx.DefaultSound;
+    return _soundlookup.SafeLookup(name) ?? _main.DefaultSound;
   }
 
   // compile a script and set up all resources
@@ -40,13 +40,14 @@ internal class GameModelInfo {
   internal bool Compile(string scriptname, string script) {
     Util.Trace(1, "Compile script '{0}'", scriptname);
     _model = null;
+    ScriptName = scriptname;
     try {
       var compiler = Compiler.Compile(scriptname, new StringReader(script), _logwriter);
       if (compiler.Success)
         _model = compiler.Model;
-      else _message = _logwriter.ToString();
+      else Message = _logwriter.ToString();
     } catch (Exception ex) {
-      _message = ex.Message;
+      Message = ex.Message;
     }
     ShowLog();
     if (_model == null) return false;
@@ -54,13 +55,13 @@ internal class GameModelInfo {
     // set options required for proper timing; also logging
     _model.GameDef.SetSetting(OptionSetting.pause_at_end_level, true);
     _model.GameDef.SetSetting(OptionSetting.pause_on_again, true);
-    if (_itemmx.VerboseLogging) _model.GameDef.SetSetting(OptionSetting.verbose_logging, true);
+    if (_main.VerboseLogging) _model.GameDef.SetSetting(OptionSetting.verbose_logging, true);
 
     // get settings for UI
-    _itemmx.BackgroundColour = ColorFromRgb(_model.GameDef.GetColour(OptionSetting.background_color, 0));
-    _itemmx.ForegroundColour = ColorFromRgb(_model.GameDef.GetColour(OptionSetting.text_color, 0xffffff));
-    _itemmx.AgainInterval = _model.GameDef.GetSetting(OptionSetting.again_interval, 0.1f);
-    _itemmx.RealtimeInterval = _model.GameDef.GetSetting(OptionSetting.realtime_interval, 0.25f);
+    _main.BackgroundColour = ColorFromRgb(_model.GameDef.GetColour(OptionSetting.background_color, 0));
+    _main.ForegroundColour = ColorFromRgb(_model.GameDef.GetColour(OptionSetting.text_color, 0xffffff));
+    _main.AgainInterval = _model.GameDef.GetSetting(OptionSetting.again_interval, 0.1f);
+    _main.RealtimeInterval = _model.GameDef.GetSetting(OptionSetting.realtime_interval, 0.25f);
     var flickscreen = _model.GameDef.GetSetting(OptionSetting.flickscreen, (Pair<int, int>)null);
     var zoomscreen = _model.GameDef.GetSetting(OptionSetting.zoomscreen, (Pair<int, int>)null);
     ScreenSize = (flickscreen != null) ? new Vector2Int(flickscreen.Item1, flickscreen.Item2)
@@ -71,14 +72,8 @@ internal class GameModelInfo {
   }
 
   // input to cause state change
-  internal void AcceptInputs(string input) {
-    Model.AcceptInputs(input);
-    ShowLog();
-  }
-
-  // new level to cause state change
-  internal void LoadLevel(int levelindex) {
-    Model.LoadLevel(levelindex);
+  internal void AcceptInput(string input) {
+    Model.AcceptInput(input);
     ShowLog();
   }
 
@@ -90,23 +85,28 @@ internal class GameModelInfo {
 
   // make a table of all the images in this game
   void LoadGameAssets() {
+    _sprites = new Sprite[_model.GameDef.ObjectCount];
+    var spcount = 0;
     for (int i = 1; i <= _model.GameDef.ObjectCount; i++) {
-      var texture = MakeTexture(_model.GameDef.GetObjectSprite(i));
-      var sprite = Sprite.Create(texture, new Rect(0, 0, texture.width, texture.height), new Vector2(0.5f, 0.5f));
-      _sprites.Add(sprite);
+      var obj = _model.GameDef.GetObject(i);
+      if (obj.Width > 0) {
+        var texture = MakeTexture(obj.Width, obj.Sprite);
+        var sprite = Sprite.Create(texture, new Rect(0, 0, texture.width, texture.height), new Vector2(0.5f, 0.5f));
+        _sprites[i - 1] = sprite;
+        ++spcount;
+      }
     }
     _soundlookup = new Dictionary<string, AudioClip>();
     foreach (var seed in _model.GameDef.GetSounds()) {
       var nseed = seed.SafeIntParse() ?? 0;
-      _soundlookup[seed] = (nseed > 0) ? Nsfxr.Generate(nseed) : _itemmx.DefaultSound;
+      _soundlookup[seed] = (nseed > 0) ? Nsfxr.Generate(nseed) : _main.DefaultSound;
     }
-    Util.Trace(1, "Load assets objects={0} sounds={1}", _sprites.Count, _soundlookup.Count);
+    Util.Trace(1, "Load assets objects={0} sounds={1}", spcount, _soundlookup.Count);
   }
 
   // Create a texture from an array of colours
-  Texture2D MakeTexture(Pair<int, IList<int>> pair) {
-    var width = pair.Item1;
-    var length = pair.Item2.Count;
+  Texture2D MakeTexture(int width, IList<int> sprite) {
+    var length = sprite.Count;
     var pixels = new Color32[length];
 
     // build pixel output in single pixels
@@ -114,7 +114,7 @@ internal class GameModelInfo {
       var y = length / width - i / width - 1;
       var x = i % width;
       // colours may be a palette index
-      var colindex = pair.Item2[y * width + x];
+      var colindex = sprite[y * width + x];
       var rgb = _model.GameDef.GetRGB(colindex);
       pixels[i] = ColorFromRgb(rgb);
     }
@@ -133,6 +133,12 @@ internal class GameModelInfo {
     tex.SetPixels32(bpixels);
     tex.Apply();
     return tex;
+  }
+
+  // create colour from index (via palette)
+  internal Color ColorFromIndex(int colindex) {
+    var rgb = _model.GameDef.GetRGB(colindex);
+    return ColorFromRgb(rgb);
   }
 
   // create colour from rgb

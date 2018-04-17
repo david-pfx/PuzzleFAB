@@ -15,6 +15,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using PuzzLangLib;
 using DOLE;
+using System;
 
 public class ScriptSelectionView : MonoBehaviour {
   public Text TitleText;
@@ -26,52 +27,41 @@ public class ScriptSelectionView : MonoBehaviour {
   public Scrollbar ScriptVerticalScrollbar;
 
   internal string Selection;
+  internal int SelectionPageNo = 0;
 
-  MainController _main;
+  MainController _main { get { return MainController.Instance; } }
+  ScriptLoader _scldr { get { return _main.ScriptLoader; } }
   IList<string> _scripts;
-  GameState _activestate;
-
-  void Start() {
-  }
+  string _notreadytext = "???";
+  int _activepageno = -1;
 
   void OnEnable() {
-    _main = FindObjectOfType<MainController>();
-    _activestate = GameState.None;
-    GetComponent<Image>().color = _main.Items.BackgroundColour;
-    TitleText.color = _main.Items.ForegroundColour;
-    StatusText.color = _main.Items.ForegroundColour;
+    GetComponent<Image>().color = _main.BackgroundColour;
+    TitleText.color = _main.ForegroundColour;
+    StatusText.color = _main.ForegroundColour;
   }
 
-  // Update is called once per frame
   void Update() {
-    if (_activestate != _main.GameState) {
+    if (_activepageno != SelectionPageNo) {
+      var sources = _scldr.GetScriptSources();
+      var selno = (SelectionPageNo + sources.Count) % sources.Count;
+      var source = sources[selno];
+      LoadScriptList(_scldr.GetScripts(source));
+      StatusText.text = "X to Select, Left/Right, Enter, Escape to cancel";
+      TitleText.text = "Select " + source;
+      _notreadytext = "Waiting...";
       Selection = null;
-      switch (_main.GameState) {
-      case GameState.Select:
-        LoadScriptList(_main.Items.ScriptList);
-        TitleText.text = "Select Script";
-        StatusText.text = "X to Select, Right for Gists, Escape to cancel";
-        ScriptText.text = "";
-        ListVerticalScrollbar.value = 1;
-        break;
-      case GameState.Gist:
-        LoadScriptList(_main.Items.GistList);
-        TitleText.text = "Select Gist";
-        StatusText.text = "X to Select, Left for Scripts, Escape to cancel";
-        ScriptText.text = "";
-        ListVerticalScrollbar.value = 1;
-        break;
-      }
-      _activestate = _main.GameState;
+      ListVerticalScrollbar.value = 1;
+      _activepageno = SelectionPageNo = selno;
     }
-    ScriptText.text = (Selection == null) ? "Please make a selection"
-      : (_main.Items.ReadScript(Selection, false)).Left(2000);
+    var text = (Selection == null) ? "Please make a selection" : _scldr.ReadScript(Selection, false);
+    ScriptText.text = (text == null) ? _notreadytext : text.Left(2000);
   }
 
   internal void ItemButtonHandler(string name, string input, string prompt) {
     if ("enter,select".Contains(input)) {
-      Selection = (_activestate == GameState.Gist) ? "gist:" + name : name;
-      ScriptText.text = _main.Items.ReadScript(Selection, true);  // first time, force reload
+      Selection = name;
+      ScriptText.text = _scldr.ReadScript(Selection, true);  // first time, force reload
       ScriptVerticalScrollbar.value = 1;
     }
   }

@@ -243,11 +243,8 @@ ModelManifest.xml
 # Puzzlang
 /Keep/jsonconvert-orig
 /Keep
-/Work/z
 *.diagsession
-/Unity/Library
 *.dll
 *.dll.meta
-/Unity/Temp
 /UnityPlayer/Library
 /UnityPlayer/Temp

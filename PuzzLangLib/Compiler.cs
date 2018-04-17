@@ -82,7 +82,7 @@ namespace PuzzLangLib {
           var offset = Math.Max(0, state.Location - 30);
           var source = program.Substring(offset, state.Location - offset)
             + "(^)" + program.Substring(state.Location);
-          Out.WriteLine(source.Replace('\r', '\\').Replace('\n', '\\').Shorten(78));
+          Out.WriteLine(source.Replace("\r\n", ";").Replace("\n", ";").Shorten(78));
           Out.WriteLine($"*** '{SourceName}' at {state.Line},{state.Column}: parse error: {e.Message}");
           _parseerror = true;
         } else {

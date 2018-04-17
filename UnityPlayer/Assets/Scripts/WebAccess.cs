@@ -28,13 +28,12 @@ public class WebAccess : MonoBehaviour {
   internal LoadStatus Status { get; private set; }
   internal string Message { get; private set; }
 
-  internal MainController _main;
-  ItemManager _itemmx { get { return _main.Items; } }
+  MainController _main { get { return MainController.Instance; } }
+  ScriptLoader _scldr { get { return _main.ScriptLoader; } }
 
   // start loading a gist  by name (may have gist: prefix)
   // eventually the result will be decoded and uses to update the script lookup
   internal bool StartLoadGist(string name) {
-    _main = FindObjectOfType<MainController>();
     if (Status == LoadStatus.Busy) return false;
     StartCoroutine(LoadJson(name));
     Status = LoadStatus.Busy;
@@ -43,16 +42,15 @@ public class WebAccess : MonoBehaviour {
 
   // Load a piece of JSON given a gist id, extract the text and update the lookup
   IEnumerator LoadJson(string name) {
-    var id = (name.StartsWith("gist:")) ? name.Substring(5) : name;
-    var url = GistApi + id;
+    var url = GistApi + name;
     var request = UnityWebRequest.Get(url);
     yield return request.SendWebRequest();
     if (request.isNetworkError || request.isHttpError) {
       Message = request.error;
-      _itemmx.ScriptLookup[name] = "Error: " + request.error;
+      _scldr.SetScriptValue(name, "Error: " + request.error);
       Status = LoadStatus.Error;
     } else {
-      _itemmx.ScriptLookup[name] = JsonExtract(request.downloadHandler.text);
+      _scldr.SetScriptValue(name, JsonExtract(request.downloadHandler.text));
       Status = LoadStatus.Done;
     }
     Util.Trace(2, "Load done {0} {1} {2}", name, Status, Message);
@@ -62,17 +60,4 @@ public class WebAccess : MonoBehaviour {
     var pjson = JSON.Parse(json);
     return pjson["files"]["script.txt"]["content"];
   }
-  //private string JsonExtract(string json) {
-  //  var restr = @"#content#: *#([^#]*)#".Replace('#', '"');
-  //  var regex = new Regex(restr);
-  //  var matches = regex.Matches(json);
-  //  Util.Trace(2, "Found {0} matches", matches.Count);
-  //  if (matches.Count == 2)
-  //    Util.Trace(2, "Found {0} groups", matches[1].Groups.Count);
-  //  if (matches.Count == 2 && matches[1].Groups.Count == 2) {
-  //    var text = matches[1].Groups[1].Value.Replace(@"\n", "\n");
-  //    Util.Trace(2, "Text: {0}", text);
-  //    return text;
-  //  } else return "bad json";
-  //}
 }

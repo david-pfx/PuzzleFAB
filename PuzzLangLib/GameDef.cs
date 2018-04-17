@@ -17,19 +17,21 @@ using DOLE;
 namespace PuzzLangLib {
   // all the possible input events
   public enum InputEvent {
-    None, Up, Left, Down, Right,
-    Action,
-    Tick,
+    None,
+    Up, Left, Down, Right,              // arrow movements
+    Action, Reaction, Fire1, Fire2, Fire3, Hover, // pseudo-movements
+    Tick,     // nothing
     Restart,  // go to beginning of level or last checkpoint
     Reset,    // go to beginning of level regardless of checkpoint
+    Level,    // load specified level
     Undo,     // return to previous state
     Init,     // run initial rules and checkpoint
   }
 
   public enum OptionSetting {
     None,
-    run_rules_on_level_start, norepeat_action, require_player_movement, debug, verbose_logging,
-    throttle_movement, noundo, noaction, norestart, scanline,
+    run_rules_on_level_start, repeat_action, require_player_movement, debug, verbose_logging,
+    throttle_movement, undo, action, restart, scanline,
     title, author, homepage, 
     background_color, text_color, 
     key_repeat_interval, realtime_interval, again_interval,
@@ -39,6 +41,9 @@ namespace PuzzLangLib {
     pause_at_end_level,
     pause_on_again,
     statistics_logging,
+    click,
+    hover,
+    arrows,
   }
 
   // used in win conditions and rule object matching
@@ -59,6 +64,7 @@ namespace PuzzLangLib {
     Pile,     // set of objects occupying single space, for level definition
     Mask,     // set of objects sharing common property, for rule testing
     Mixed,    // set of objects of mixed parentage -- usually an error
+    Text,     // text string
   }
 
   // directions used in rules and sound triggers
@@ -68,7 +74,7 @@ namespace PuzzLangLib {
     Horizontal, Vertical, Orthogonal, // combos of the above
     // note: Orthogonal must be last in above group
     // absolute directions, patterns and actions only
-    Action,                           // input event treated as direction
+    Action, Fire1, Fire2, Fire3, Hover, // input events treated as direction
     Forward,                          // pattern/action: same as rule direction
     Moving,                           // moving, excludes Action
     Stationary,                       // not moving, excludes Action
@@ -84,7 +90,7 @@ namespace PuzzLangLib {
   internal enum SoundTrigger {
     None,
     // these require an object
-    Action, Create, Destroy,
+    Action, Reaction, Create, Destroy,
     Move, Cantmove,               // optional direction
     // there are related to game events
     Titlescreen, Startgame, Cancel, Endgame, Startlevel, Endlevel,
@@ -122,11 +128,15 @@ namespace PuzzLangLib {
   /// <summary>
   /// An Object is a moveable piece with a visible representation
   /// </summary>
-  internal class Object {
-    internal string Name;
-    internal int Layer;
-    internal IList<int> Sprite;
-    internal int Width;
+  public class PuzzleObject {
+    public string Name;
+    public int Layer;               // layer on which to display
+    public Pair<float,float> Pivot; // fixed point relative to cell
+    public double Height;           // size of image (1.0 = size of cell)
+    public int Width;               // sprite width in pixels
+    public IList<int> Sprite;       // list of colours for each pixel
+    public string Text;             // string to display over sprite
+    public int TextColour;          // colour of text
   }
 
   /// <summary>
@@ -134,7 +144,7 @@ namespace PuzzLangLib {
   /// </summary>
   internal class SoundAction {
     internal SoundTrigger Trigger;
-    internal HashSet<int> Object;  // .NET 3.5
+    internal HashSet<int> ObjectIds;  // .NET 3.5
     internal HashSet<Direction> Directions;
     internal string Seed;
   }
@@ -144,11 +154,11 @@ namespace PuzzLangLib {
   /// </summary>
   internal class WinCondition {
     internal MatchOperator Action;
-    internal HashSet<int> Objects;
+    internal HashSet<int> ObjectIds;
     internal HashSet<int> Others;
 
     public override string ToString() {
-      return String.Format("WinCo<{0}:{1}:{2}>", Action, Objects.Join(), Others?.Join());
+      return String.Format("WinCo<{0}:{1}:{2}>", Action, ObjectIds.Join(), Others?.Join());
     }
   }
 
@@ -188,11 +198,12 @@ namespace PuzzLangLib {
   /// The compiled game as data. All strings replaced by integers/enums
   /// </summary>
   public class GameDef {
-    static internal HashSet<Direction> StepDirection = new HashSet<Direction> {
-      Direction.Up, Direction.Right, Direction.Down, Direction.Left, Direction.Action
+    static internal HashSet<Direction> MoveDirections = new HashSet<Direction> {
+      Direction.Up, Direction.Right, Direction.Down, Direction.Left,
+      Direction.Action, Direction.Fire1, Direction.Fire2, Direction.Fire3, Direction.Hover,
     };
 
-    public int ObjectCount { get { return Objects.Count; } }
+    public int ObjectCount { get { return PuzzleObjects.Count; } }
     public int LevelCount { get { return LevelIndex.Count; } }
 
     internal Dictionary<OptionSetting, bool> BoolSettings = new Dictionary<OptionSetting, bool>();
@@ -202,7 +213,7 @@ namespace PuzzLangLib {
     internal Dictionary<OptionSetting, string> StringSettings = new Dictionary<OptionSetting, string>();
     internal int[] Palette = new int[16];
 
-    internal List<Object> Objects = new List<Object>();
+    internal List<PuzzleObject> PuzzleObjects = new List<PuzzleObject>();
     internal List<RuleGroup> EarlyRules = new List<RuleGroup>();
     internal List<RuleGroup> LateRules = new List<RuleGroup>();
     internal Dictionary<SoundTrigger, string> GameSounds = new Dictionary<SoundTrigger, string>();
@@ -212,9 +223,10 @@ namespace PuzzLangLib {
     internal List<Level> Levels = new List<Level>();
     internal List<Pair<LevelKind, int>> LevelIndex = new List<Pair<LevelKind, int>>();
     internal int LayerCount;
-    internal HashSet<int> Players = null;  // .NET 3.5
-    internal HashSet<int> Background = null;
     internal int RngSeed = 99;
+    internal HashSet<int> Background = null;
+    internal HashSet<int> Players = new HashSet<int>();
+    internal HashSet<int> Clickables = new HashSet<int>();
 
     public string GetSetting(OptionSetting name, string other) {
       return StringSettings.SafeLookup(name) ?? other;
@@ -260,21 +272,20 @@ namespace PuzzLangLib {
       PairSettings[name] = value;
     }
 
-    public Pair<int,IList<int>> GetObjectSprite(int id) {
-      var obj = Objects[id - 1];
-      return Pair.Create(obj.Width, obj.Sprite);
+    public PuzzleObject GetObject(int id) {
+      return PuzzleObjects[id - 1];
     }
 
     internal void SetObjectLayer(int obj, int layer) {
-        Objects[obj - 1].Layer = layer;
+        PuzzleObjects[obj - 1].Layer = layer;
     }
 
     internal int GetLayer(int obj) {
-      return Objects[obj - 1].Layer;
+      return PuzzleObjects[obj - 1].Layer;
     }
 
     public string GetName(int obj) {
-      return (obj == 0) ? "(--)" : Objects[obj - 1].Name;
+      return (obj == 0) ? "(--)" : PuzzleObjects[obj - 1].Name;
     }
 
     //--- sounds
@@ -291,7 +302,7 @@ namespace PuzzLangLib {
     internal void AddObjectSound(SoundTrigger trigger, HashSet<int> objects, IEnumerable<Direction> directions, string seed) {
       ObjectSounds.Add(new SoundAction {
         Trigger = trigger,
-        Object = objects,
+        ObjectIds = objects,
         Directions = (directions == null) ? null : new HashSet<Direction>(directions),
         Seed = seed,
       });
@@ -316,7 +327,7 @@ namespace PuzzLangLib {
     internal void AddWinCondition(MatchOperator action, HashSet<int> objects, HashSet<int> others) {
       WinConditions.Add(new WinCondition {
         Action = action,
-        Objects = objects,
+        ObjectIds = objects,
         Others = others
       });
     }

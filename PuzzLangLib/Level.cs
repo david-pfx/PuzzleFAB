@@ -46,8 +46,8 @@ namespace PuzzLangLib {
     internal int ChangesCount { get { return _changes.Count; } }
 
     internal int this[int x, int y, int layer] {
-      get { return _locations[GetLocation(x, y), layer - 1]; }
-      set { SetCell(GetLocation(x, y), layer - 1, value); }
+      get { return _locations[GetCellIndex(x, y), layer - 1]; }
+      set { SetCell(GetCellIndex(x, y), layer - 1, value); }
     }
     public int this[int index, int layer] {
       get { return _locations[index, layer - 1]; }
@@ -57,11 +57,11 @@ namespace PuzzLangLib {
       get { return _locations[locator.Index, locator.Layer - 1]; }
       set { SetCell(locator.Index, locator.Layer - 1, value); }
     }
-    internal int GetLocation(int x, int y) {
-      if (!IsLocation(x, y)) throw Error.Assert("out of range");
+    internal int GetCellIndex(int x, int y) {
+      if (!IsCellCoords(x, y)) throw Error.Assert("out of range");
       return y * Width + x;
     }
-    internal bool IsLocation(int x, int y) {
+    internal bool IsCellCoords(int x, int y) {
       return x >= 0 && x < Width && y >= 0 && y < Height;
     }
 
@@ -70,12 +70,10 @@ namespace PuzzLangLib {
 
     // lookup increment for x, y
     static readonly Dictionary<Direction, Pair<int, int>> _steplookup = new Dictionary<Direction, Pair<int, int>> {
-      { Direction.None, Pair.Create(0,0) },
       { Direction.Up, Pair.Create(0,-1) },
       { Direction.Right, Pair.Create(1,0) },
       { Direction.Down, Pair.Create(0,1) },
       { Direction.Left, Pair.Create(-1,0) },
-      { Direction.Action, Pair.Create(0,0) },
     };
 
     //--- ctor
@@ -97,23 +95,20 @@ namespace PuzzLangLib {
     }
 
     // return list of objects found at this location (for testing and background)
-    internal IList<int> GetObjects(int location) {
-      return Enumerable.Range(1, Depth).Select(z => this[location, z])
+    internal IList<int> GetObjects(int cellindex) {
+      return Enumerable.Range(1, Depth).Select(z => this[cellindex, z])
         .Where(v => v != 0)
         .ToList();
     }
 
-    internal bool IsValid(Direction direction) {
-      return _steplookup.ContainsKey(direction);
-    }
-
     // Try to step a level index by a direction
-    internal int? Step(int levelindex, Direction direction) {
-      if (!_steplookup.ContainsKey(direction)) throw Error.Assert("dir: {0}", direction);
-      var x = levelindex % Width + _steplookup[direction].Item1;
-      var y = levelindex / Width + _steplookup[direction].Item2;
-      if (!IsLocation(x, y)) return null;
-      return GetLocation(x, y);
+    internal int? Step(int cellindex, Direction direction) {
+      if (!GameDef.MoveDirections.Contains(direction)) throw Error.Assert("dir: {0}", direction);
+      if (!_steplookup.ContainsKey(direction)) return cellindex;
+      var x = cellindex % Width + _steplookup[direction].Item1;
+      var y = cellindex / Width + _steplookup[direction].Item2;
+      if (!IsCellCoords(x, y)) return null;
+      return GetCellIndex(x, y);
     }
 
     // update contents, keeping a record of change location and initial content

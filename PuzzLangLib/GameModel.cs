@@ -16,6 +16,7 @@ using System.Linq;
 using System.Text;
 using static System.Math;
 using DOLE;
+using Pegasus.Common;
 
 namespace PuzzLangLib {
   enum ModelState {
@@ -35,23 +36,23 @@ namespace PuzzLangLib {
   /// Precise identification of a moving object
   /// </summary>
   class Mover {
-    internal int Object;
+    internal int ObjectId;
     internal Locator Locator;
     internal Direction Direction;
     internal RuleGroup RuleGroup;
 
     // create a mover, which may target an illegal location
     static internal Mover Create(int obj, Locator loc, Direction dir, RuleGroup group = null, bool rigid = false) {
-      if (!GameDef.StepDirection.Contains(dir)) throw Error.Assert("create {0}", dir);
+      if (!GameDef.MoveDirections.Contains(dir)) throw Error.Assert("create {0}", dir);
       return new Mover {
-        Object = obj,
+        ObjectId = obj,
         Locator = loc,
         Direction = dir,
         RuleGroup = group,
       };
     }
     public override string ToString() {
-      return $"Mover<{Object},{Locator},{Direction}>";
+      return $"Mover<{ObjectId},{Locator},{Direction}>";
     }
   }
 
@@ -152,7 +153,7 @@ namespace PuzzLangLib {
     }
 
     // load and initialise some level
-    public bool LoadLevel(int levelindex) {
+    bool LoadLevel(int levelindex) {
       if (_levelindex == -1) {
         VerboseLog("Start game", levelindex);
         CheckTrigger(SoundTrigger.Startgame);
@@ -187,16 +188,26 @@ namespace PuzzLangLib {
       return true;
     }
 
+    // accept multiple inputs and catch exceptions
     public void AcceptInputs(string inputs) {
+      foreach (var input in inputs.SplitTrim(",")) {
+        if (!GameOver)
+          AcceptInput(input);
+      }
+    }
+
+    // accept a single input and show consequences
+    public void AcceptInput(string input) {
       try {
-        foreach (var inevent in ParseInputEvents(inputs)) {
-          if (!GameOver) {
-            Accept(inevent);
-            if (Sounds.Count > 0) Logger.WriteLine(1, "# Sounds: {0}", Sounds.Join());
-            if (_message != null) Logger.WriteLine(1, "# Message: {0}", CurrentMessage);
-            if (Logger.Level >= 2) ShowLevel("input");
-          }
-        }
+        var split = input.SplitTrim(" ");
+        var inevent = split[0].SafeEnumParse<InputEvent>() ?? InputEvent.None;
+        if (inevent == InputEvent.None) throw Error.Argument("Bad input: '{0}'".Fmt(input));
+        var inparam = (split.Count > 1) ? split[1].SafeIntParse() : null;
+        AcceptEvent(inevent, inparam);
+
+        if (Sounds.Count > 0) Logger.WriteLine(1, "# Sounds: {0}", Sounds.Join());
+        if (_message != null) Logger.WriteLine(1, "# Message: {0}", CurrentMessage);
+        if (Logger.Level >= 2) ShowLevel("input");
       } catch (Exception ex) {
         _message = "Error: {0}".Fmt(ex.Message);
         VerboseLog("{0}", _message);
@@ -279,8 +290,12 @@ namespace PuzzLangLib {
 
     // Accept input for the current level
     // may result in level up or game over
-    bool Accept(InputEvent input) {
-      VerboseLog("Accept input of {0}", input);
+    bool AcceptEvent(InputEvent input, int? intparam) {
+      VerboseLog("Accept input of {0} {1}", input, intparam);
+      if (input == InputEvent.Level) {
+        LoadLevel(intparam ?? 0);  // sets state directly
+        return true;
+      }
       if (input != InputEvent.Init)
         Sounds.Clear();
 
@@ -288,7 +303,7 @@ namespace PuzzLangLib {
       case ModelState.Againing:
       case ModelState.Level:
         if (!IsValidInGame(input)) break;
-        HandleInput(input);
+        HandleInput(input, intparam);
         if (_states.Last().IsAgaining) {
           _modelstate = ModelState.Againing;
           if (_gamedef.GetSetting(OptionSetting.pause_on_again, false)) break;
@@ -335,17 +350,29 @@ namespace PuzzLangLib {
       case InputEvent.None:
         return false;
       case InputEvent.Action:
-        return !GameDef.GetSetting(OptionSetting.noaction, false);
+      case InputEvent.Reaction:
+        return GameDef.GetSetting(OptionSetting.action, false);
+      case InputEvent.Up:
+      case InputEvent.Left:
+      case InputEvent.Down:
+      case InputEvent.Right:
+        return GameDef.GetSetting(OptionSetting.arrows, false);
       case InputEvent.Restart:
-        return !GameDef.GetSetting(OptionSetting.norestart, false);
+        return GameDef.GetSetting(OptionSetting.restart, true);
       case InputEvent.Undo:
-        return !GameDef.GetSetting(OptionSetting.noundo, false);
+        return GameDef.GetSetting(OptionSetting.undo, true);
+      case InputEvent.Hover:
+        return GameDef.GetSetting(OptionSetting.hover, false);
+      case InputEvent.Fire1:
+      case InputEvent.Fire2:
+      case InputEvent.Fire3:
+        return GameDef.GetSetting(OptionSetting.click, false);
       }
       return true;
     }
 
     // compute and handle next state based on input event
-    void HandleInput(InputEvent input) {
+    void HandleInput(InputEvent input, int? intparam = null) {
       Logger.WriteLine(2, "HandleInput input={0}", input);
       switch (input) {
       case InputEvent.Up:
@@ -353,9 +380,17 @@ namespace PuzzLangLib {
       case InputEvent.Down:
       case InputEvent.Right:
       case InputEvent.Action:
+      case InputEvent.Reaction:
+      case InputEvent.Fire1:
+      case InputEvent.Fire2:
+      case InputEvent.Fire3:
+      case InputEvent.Hover:
       case InputEvent.Tick:
       case InputEvent.Init:
-        NextState(input);
+        NextState(input, intparam);
+        break;
+      case InputEvent.Level:
+        LoadLevel(intparam ?? 0);
         break;
       case InputEvent.Reset:
         LoadLevel(_levelindex);
@@ -376,7 +411,7 @@ namespace PuzzLangLib {
     }
 
     // apply input and rules to derive next state, decide what to do with it
-    void NextState(InputEvent input) {
+    void NextState(InputEvent input, int? intparam) {
       // any move made by player has valid direction, others are direction none
       var dir = (Againing) ? Direction.None
         : input.ToString().SafeEnumParse<Direction>() ?? Direction.None;
@@ -385,7 +420,8 @@ namespace PuzzLangLib {
       // if current state is againing it will get discarded lower down
       var currentstate = _states.Last();
       var now = DateTime.Now;
-      var newstate = currentstate.NextState(dir);
+      var newstate = currentstate.NextState(dir, intparam);
+
       StatsLog("Took {0}msec for rules:{1} (early:{2}) moves:{3} actions:{4} commands:{5}", 
         (int)(DateTime.Now - now).TotalMilliseconds, newstate.TotalRuleCounter, newstate.EarlyRuleCounter, 
         newstate.MoveCounter, newstate.ActionCounter, newstate.CommandCounter);
@@ -433,6 +469,7 @@ namespace PuzzLangLib {
           VerboseLog("Move complete");
           _states.Add(newstate);
           CheckTrigger(input == InputEvent.Action ? SoundTrigger.Action
+            : input == InputEvent.Reaction ? SoundTrigger.Reaction
             : input == InputEvent.Tick ? SoundTrigger.Tick : SoundTrigger.Move);
           if (newstate.Result == StateResult.Finished) {
             VerboseLog("Level complete");
@@ -453,26 +490,5 @@ namespace PuzzLangLib {
         VerboseLog("Sound {0} {1}", sound, trigger);
       }
     }
-
-    // parse string list of input events
-    IList<InputEvent> ParseInputEvents(string input) {
-      return (input ?? "").SplitTrim(",")
-        .Select(i => i.SafeEnumParse<InputEvent>() ?? InputEvent.None).ToList();
-    }
-
-    // obs???
-    //void ShowAll() {
-    //  var msgidx = 0;
-    //  for (int levelno = 0; levelno < _gamedef.Levels.Count; ++levelno) {
-    //    var level = _gamedef.Levels[levelno];
-    //    while (msgidx < level.MessageIndex)
-    //      _out.WriteLine(_gamedef.Messages[msgidx++]);
-    //    ShowLevel(level);
-    //    var state = GameState.Create(this, level, 1);
-    //  }
-
-    //  while (msgidx < _gamedef.Messages.Count)
-    //    _out.WriteLine(_gamedef.Messages[msgidx++]);
-    //}
   }
 }

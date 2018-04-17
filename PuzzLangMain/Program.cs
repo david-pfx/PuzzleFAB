@@ -78,7 +78,11 @@ namespace PuzzLangMain {
 
       // trigger options here to avoid having to change debug conditions
       if (_xdebug) {
-        options.Parse(new string[] { @".\testgames\ellipsisnodup.txt", "/403", "/input=right", "/endl" });
+        options.Parse(new string[] { @"..\UnityPlayer\Assets\Resources\New Puzzles\loops_of_zen.txt", "/3", "/input=fire1 12" });
+        //options.Parse(new string[] { @"..\UnityPlayer\User Puzzles\2048.txt", "/3", "/input=right" });
+        //options.Parse(new string[] { @".\testgames\input_click.txt", "/503", "/input=hover 2" });
+        //options.Parse(new string[] { @"..\UnityPlayer\TestGames\New\loops_of_zen.txt", "/3", "/input=fire1 12" });
+        //options.Parse(new string[] { @".\testgames\ellipsisnodup.txt", "/403", "/input=right", "/endl" });
         //options.Parse(new string[] { @".\jsonconvert\117-Rigidbody fix bug #246.txt", "/201", "/input=up,up" });
         //options.Parse(new string[] { "/3", "/input=action,right,right,left,right" });
         //options.Parse(new string[] { "/jct", "/0" });

@@ -114,7 +114,7 @@ namespace PuzzLangLib {
       Logger.WriteLine(3, "Check trigger {0} {1} {2}", trigger, _gamedef.GetName(obj), direction);
       var sound = _gamedef.GameSounds.SafeLookup(trigger);
       if (sound == null) {
-        var sact = _gamedef.ObjectSounds.FirstOrDefault(s => s.Trigger == trigger && s.Object.Contains(obj)
+        var sact = _gamedef.ObjectSounds.FirstOrDefault(s => s.Trigger == trigger && s.ObjectIds.Contains(obj)
           && (s.Directions == null || s.Directions.Contains(direction)));
         if (sact != null) sound = sact.Seed;
       }
@@ -185,14 +185,14 @@ namespace PuzzLangLib {
 
     // check for matching object, return true on failure to abort
     internal bool OpCheckON(HashSet<int> objects, MatchOperator oper) {
-      var levindex = _trail.Current[_trailindex];
-      return !IsMatch(levindex, objects, Direction.None, oper);
+      var cellindex = _trail.Current[_trailindex];
+      return !IsMatch(cellindex, objects, Direction.None, oper);
     }
 
     // check for matching object, return true on failure to abort
     internal bool OpCheckOMN(HashSet<int> objects, Direction direction, MatchOperator oper) {
-      var levindex = _trail.Current[_trailindex];
-      return !IsMatch(levindex, objects, direction, oper);
+      var cellindex = _trail.Current[_trailindex];
+      return !IsMatch(cellindex, objects, direction, oper);
     }
 
     // Test for matching objects, stepping in given direction
@@ -227,15 +227,15 @@ namespace PuzzLangLib {
     }
 
     internal bool OpCreateO(HashSet<int> objects, Direction direction) {
-      var levindex = _trail.Current[_trailindex];
+      var cellindex = _trail.Current[_trailindex];
       // random means pick a random object from those provided (instead of all of them)
       if (direction == Direction.Random) {
         var obj = objects.ToArray()[_model.Rng.Next(objects.Count)];
-        CreateObject(obj, levindex);
+        CreateObject(obj, cellindex);
       } else {
         foreach (var obj in objects) {
-          CreateObject(obj, levindex);
-          MoveObject(obj, levindex, direction);
+          CreateObject(obj, cellindex);
+          MoveObject(obj, cellindex, direction);
         }
       }
       return false;
@@ -243,23 +243,23 @@ namespace PuzzLangLib {
 
     // destroy specific objects if found
     internal bool OpDestroyO(HashSet<int> objects) {
-      var levindex = _trail.Current[_trailindex];
+      var cellindex = _trail.Current[_trailindex];
       foreach (var obj in objects)
-        DestroyObject(obj, levindex);
+        DestroyObject(obj, cellindex);
       return false;
     }
 
     // apply movement to objects -- may be random
     // Direction.None special: means cancel/ignore
     internal bool OpMoveOM(HashSet<int> objects, Direction direction) {
-      var levindex = _trail.Current[_trailindex];
+      var cellindex = _trail.Current[_trailindex];
 
       // randomdir means pick a random direction from those available
       var dir = (direction == Direction.Random) ? Direction.None
         : (direction == Direction.Randomdir) ? _dirtable[_model.Rng.Next(_dirtable.Length)]
         : direction;
       foreach (var obj in objects)
-        MoveObject(obj, levindex, dir);
+        MoveObject(obj, cellindex, dir);
       return false;
     }
 
@@ -290,40 +290,40 @@ namespace PuzzLangLib {
     //===== implementation =====
 
     // create object at location 
-    void CreateObject(int obj, int levindex) {
+    void CreateObject(int obj, int cellindex) {
       var layer = _gamedef.GetLayer(obj);
-      if (_level[levindex, layer] != obj) {
-        Logger.WriteLine(3, "Create {0} at {1}", _gamedef.GetName(obj), levindex);
-        ClearLocation(levindex, layer);
-        _level[levindex, layer] = obj;
+      if (_level[cellindex, layer] != obj) {
+        Logger.WriteLine(3, "Create {0} at {1}", _gamedef.GetName(obj), cellindex);
+        ClearLocation(cellindex, layer);
+        _level[cellindex, layer] = obj;
         CheckTrigger(SoundTrigger.Create, obj);
       }
     }
 
     // destroy object at location
-    void DestroyObject(int obj, int levindex) {
+    void DestroyObject(int obj, int cellindex) {
       var layer = _model._gamedef.GetLayer(obj);
-      if (_level[levindex, layer] == obj) {
-        Logger.WriteLine(3, "Destroy {0} at {1}", _gamedef.GetName(obj), levindex);
-        ClearLocation(levindex, layer);
+      if (_level[cellindex, layer] == obj) {
+        Logger.WriteLine(3, "Destroy {0} at {1}", _gamedef.GetName(obj), cellindex);
+        ClearLocation(cellindex, layer);
         CheckTrigger(SoundTrigger.Destroy, obj);
       }
     }
 
     // move an object at location in a direction
     // direction None used to cancel existing movement
-    void MoveObject(int obj, int levindex, Direction direction) {
-      if (!(GameDef.StepDirection.Contains(direction) || direction == Direction.None))
+    void MoveObject(int obj, int cellindex, Direction direction) {
+      if (!(GameDef.MoveDirections.Contains(direction) || direction == Direction.None))
         throw Error.Assert("move {0}", direction);
       // only move an object if it's here, else add a new mover
-      var locator = Locator.Create(levindex, _gamedef.GetLayer(obj));
+      var locator = Locator.Create(cellindex, _gamedef.GetLayer(obj));
       if (_level[locator] == obj) {
         var found = false;
 
         // first try to update move list
         for (var movex = 0; movex < _movers.Count; ++movex) {
           var mover = _movers[movex];
-          if (mover.Object == obj && mover.Locator.Index == levindex) {
+          if (mover.ObjectId == obj && mover.Locator.Index == cellindex) {
             found = true;
             if (_movers[movex].Direction != direction) {
               Logger.WriteLine(3, "Mover update {0} to '{1}' at {2}", direction, _gamedef.GetName(obj), locator);
@@ -369,10 +369,10 @@ namespace PuzzLangLib {
     }
 
     // clear out whatever is in the location, return true if was not empty
-    bool ClearLocation(int levindex, int layer) {
-      if (_level[levindex, layer] != 0) {
-        _level[levindex, layer] = 0;
-        var mover = _movers.FirstOrDefault(m => m.Locator.Index == levindex && m.Locator.Layer == layer);
+    bool ClearLocation(int cellindex, int layer) {
+      if (_level[cellindex, layer] != 0) {
+        _level[cellindex, layer] = 0;
+        var mover = _movers.FirstOrDefault(m => m.Locator.Index == cellindex && m.Locator.Layer == layer);
         if (mover != null)
           _movers.Remove(mover);
         return true;
@@ -383,20 +383,20 @@ namespace PuzzLangLib {
     // test whether there is a matching object at this location
     // direction can be specified, None for ignore or Stationary for not moving
     // oper is No, All or Any
-    bool IsMatch(int levindex, HashSet<int> objects, Direction direction, MatchOperator oper) {
+    bool IsMatch(int cellindex, HashSet<int> objects, Direction direction, MatchOperator oper) {
       // no objects matches no objects (ignore direction and operator)
       if (objects.Count == 0)
         return true;                                        // don't care
-      var found = IsInLevel(levindex, objects, oper);
+      var found = IsInLevel(cellindex, objects, oper);
       if (found && direction != Direction.None)
-        found = IsMover(levindex, objects, direction);
+        found = IsMover(cellindex, objects, direction);
       return found;
     }
 
     // Look for object moving in specific direction, or none
-    bool IsMover(int levindex, HashSet<int> objects, Direction direction) {
+    bool IsMover(int cellindex, HashSet<int> objects, Direction direction) {
       foreach (var move in _movers) { 
-        if (levindex == move.Locator.Index && objects.Contains(move.Object)) {
+        if (cellindex == move.Locator.Index && objects.Contains(move.ObjectId)) {
           if (direction == Direction.Moving) return true;
           if (direction == Direction.Stationary) return false;
           if (move.Direction == direction) return true;
@@ -407,10 +407,10 @@ namespace PuzzLangLib {
     }
 
     // Find object in level, moving or not
-    bool IsInLevel(int levindex, HashSet<int> objects, MatchOperator oper) {
+    bool IsInLevel(int cellindex, HashSet<int> objects, MatchOperator oper) {
       if (oper == MatchOperator.All)
-        return objects.All(o => _level[levindex, _gamedef.GetLayer(o)] == o);
-      else return objects.Any(o => _level[levindex, _gamedef.GetLayer(o)] == o) == (oper != MatchOperator.No);
+        return objects.All(o => _level[cellindex, _gamedef.GetLayer(o)] == o);
+      else return objects.Any(o => _level[cellindex, _gamedef.GetLayer(o)] == o) == (oper != MatchOperator.No);
     }
 
     IList<int> FindMatches(HashSet<int> objects, Direction direction, MatchOperator oper) {
@@ -418,40 +418,40 @@ namespace PuzzLangLib {
         return FindStatics(objects, oper).ToList();
       if (direction == Direction.Stationary)
         return FindStatics(objects, oper)
-          .Where(x => !_movers.Any(m => m.Locator.Index == x && objects.Contains(m.Object)))
+          .Where(x => !_movers.Any(m => m.Locator.Index == x && objects.Contains(m.ObjectId)))
           .ToList();
       return FindMovers(objects, direction, oper).ToList();
     }
 
     IEnumerable<int> FindStatics(HashSet<int> objects, MatchOperator oper) {
-      for (var levindex = 0; levindex < _level.Length; ++levindex) {
+      for (var cellindex = 0; cellindex < _level.Length; ++cellindex) {
         if (oper == MatchOperator.All) {
-          if (objects.All(o => _level[levindex, _gamedef.GetLayer(o)] == o))
-            yield return levindex;
+          if (objects.All(o => _level[cellindex, _gamedef.GetLayer(o)] == o))
+            yield return cellindex;
         } else {
-          var found = objects.Any(o => _level[levindex, _gamedef.GetLayer(o)] == o);
+          var found = objects.Any(o => _level[cellindex, _gamedef.GetLayer(o)] == o);
           if (found == (oper != MatchOperator.No))
-            yield return levindex;
+            yield return cellindex;
         }
       }
     }
 
     IEnumerable<int> FindMovers(HashSet<int> objects, Direction direction, MatchOperator oper) {
       if (!(oper == MatchOperator.Any || oper == MatchOperator.All)) throw Error.Assert("oper {0}", oper);
-      if (!(direction == Direction.Moving || GameDef.StepDirection.Contains(direction))) throw Error.Assert("dir {0}", direction);
+      if (!(direction == Direction.Moving || GameDef.MoveDirections.Contains(direction))) throw Error.Assert("dir {0}", direction);
       var moves = _movers
         .Where(m => direction == Direction.Moving || direction == m.Direction)
         .OrderBy(m => m.Locator.Index);
       if (oper == MatchOperator.Any) {
         foreach (var move in moves)
-          if (objects.Contains(move.Object))
+          if (objects.Contains(move.ObjectId))
             yield return move.Locator.Index;
       } else {
         foreach (var move in moves)
-          if (objects.Contains(move.Object))
+          if (objects.Contains(move.ObjectId))
             if (objects
               .All(o => moves
-                .Any(m => m.Object == move.Object && m.Locator.Index == move.Locator.Index)))
+                .Any(m => m.ObjectId == move.ObjectId && m.Locator.Index == move.Locator.Index)))
               yield return move.Locator.Index;
       }
     }
