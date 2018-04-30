@@ -70,7 +70,6 @@ public class MainController : MonoBehaviour {
     Instance = this;
     Util.MaxLoggingLevel = Noisy;
     Assert.raiseExceptions = true;
-    DOLE.Logger.Level = Noisy;
   }
 
   void Start() {
@@ -107,7 +106,8 @@ public class MainController : MonoBehaviour {
   }
 
   internal string GetStatusInfo() {
-    return "data={0}\napp={1}\nuser={2}\n".Fmt(Application.dataPath, AppDirectory, UserDirectory);
+    return "data={0}\napp={1}\nuser={2}\nurl={3}"
+      .Fmt(Application.dataPath, AppDirectory, UserDirectory, Application.absoluteURL);
   }
 
   // accessed on startup or when new script selected
@@ -192,18 +192,19 @@ public class MainController : MonoBehaviour {
     var camerasize = new Vector2(2 * camera.orthographicSize * camera.aspect, 2 * camera.orthographicSize);
     _screentoortho = 2 * camera.orthographicSize / camera.pixelHeight;
 
-    _board = Instantiate(BoardPrefab);
-    _boardview = _board.GetComponent<BoardView>();
-    _boardview.Position = new Vector3(camerasize.x, camerasize.y);
-
+    // the size of the board including surroundings
+    var boardsize = new Vector3(camerasize.x, camerasize.y) * BoardScale;
     // the rectangle of tiles in the level
     var levelsize = new Vector3Int(level.Width, level.Height, level.Depth);
     // the rectangle of tiles to be displayed
     var displaysize = (_modelinfo.ScreenSize == Vector2Int.zero) ? levelsize
       : Vector3Int.Min(levelsize, new Vector3Int(_modelinfo.ScreenSize.x, _modelinfo.ScreenSize.y, level.Depth));
     // the size of each tile in units
-    var scale = Math.Min(camerasize.x / displaysize.x, camerasize.y / displaysize.y) * BoardScale;
+    var scale = Math.Min(boardsize.x / displaysize.x, boardsize.y / displaysize.y);
 
+    _board = Instantiate(BoardPrefab);
+    _boardview = _board.GetComponent<BoardView>();
+    _boardview.Setup(boardsize);
     _boardview.CreateTiles(displaysize, scale, level.Width, TilePrefab);
   }
 

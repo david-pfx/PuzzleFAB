@@ -150,7 +150,7 @@ Justify = v:Ident &{ IsJustify(v) } { v }
 // simple tokens
 ColourValue = v:( HexNumber / "" Letter+ ) WSC { v }
 Token = "" LEVELCHAR*
-Glyph = v:LEVELCHAR IDX { v }
+Glyph = v:LEVELCHAR !LEVELCHAR { v }
 IdOrGlyph = v:( IdChar IdChar* / LEVELCHAR ) WSC { v }
 Ident = v:( IdChar IdChar* ) WSC { v }
 AnyText = v:("" ( !CC . )+ ) { v.Trim() }

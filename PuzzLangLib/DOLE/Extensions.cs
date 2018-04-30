@@ -57,6 +57,16 @@ namespace DOLE {
       return arg.Substring(Max(0, arg.Length - count));
     }
 
+    public static string After(this string arg, string delim) {
+      var pos = arg.IndexOf(delim);
+      return (pos == -1) ? arg : arg.Substring(pos + 1);
+    }
+
+    public static string Before(this string arg, string delim) {
+      var pos = arg.IndexOf(delim);
+      return (pos == -1) ? "" : arg.Substring(0, pos);
+    }
+
     // return simple split with trim, excluding empty parts
     public static IList<string> SplitTrim(this string target, string delim = ",") {
       var parts = target

@@ -54,6 +54,8 @@ namespace DOLE {
     static DateTime _timenow = DateTime.Now;
 
     public static void Open(int level) {
+      Console.OutputEncoding = System.Text.Encoding.UTF8;
+      //Console.OutputEncoding = System.Text.Encoding.Unicode;
       Open(level, Console.Out);
     }
     public static void Open(int level, string name) {
@@ -154,7 +156,7 @@ namespace DOLE {
 
     static string Pad(int level, string msg) {
       bool timeit = msg.StartsWith(">");
-      bool padit = msg.Length > 0 && Char.IsUpper(msg[0]);
+      bool padit = msg.Length > 0 && (Char.IsUpper(msg[0]) || msg[0] == '['); // indent entry and exit
 
       string padding = (timeit) ? String.Format(@"{0:mm\:ss\.fff} {1,3:N0}ms : ",
           _timenow - _firsttime, (_timenow - _lasttime).TotalMilliseconds)

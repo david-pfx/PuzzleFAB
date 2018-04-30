@@ -248,3 +248,5 @@ ModelManifest.xml
 *.dll.meta
 /UnityPlayer/Library
 /UnityPlayer/Temp
+/UnityPlayer/TestPuzzles/Buggy
+/UnityPlayer/TestPuzzles/jsonconvert

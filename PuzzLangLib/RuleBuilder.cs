@@ -32,8 +32,8 @@ namespace PuzzLangLib {
 
     // pattern directions that cause rule expansion
     static readonly Dictionary<Direction, Direction[]> _expanddirlookup = new Dictionary<Direction, Direction[]> {
-      { Direction.Perpendicular, new Direction[] { Direction.UpArrow_, Direction.DownArrow_ } },
-      { Direction.Parallel,     new Direction[] { Direction.LeftArrow_, Direction.RightArrow_ } },
+      { Direction.Perpendicular, new Direction[] { Direction.DownArrow_, Direction.UpArrow_} },
+      { Direction.Parallel,     new Direction[] { Direction.RightArrow_, Direction.LeftArrow_} },
       { Direction.Horizontal,   new Direction[] { Direction.Left,Direction.Right } },
       { Direction.Vertical,     new Direction[] { Direction.Up, Direction.Down } },
       { Direction.Orthogonal,   new Direction[] { Direction.Up, Direction.Down, Direction.Left, Direction.Right, } },
@@ -78,7 +78,7 @@ namespace PuzzLangLib {
     }
 
     // Expand until rules are atomic, make absolute, return list of compiled rules
-    internal IList<CompiledRule> Build(AtomicRule arule, int groupno) {
+    internal IList<AtomicRule> PrepareRule(AtomicRule arule, int groupno) {
       Logger.WriteLine(2, "Build group {0} rule {1}", groupno, arule.RuleId);
 
       // how many directions do we need?
@@ -96,12 +96,11 @@ namespace PuzzLangLib {
         .SelectMany(d => exrules
           .Select(r => MakeAbsolute(r, d))).ToList();
 
-      // compile and return
-      return absrules.Select(r => CompileRule(r)).ToList();
+      return absrules;
     }
 
     // compile a rule
-    CompiledRule CompileRule(AtomicRule rule) {
+    internal CompiledRule CompileRule(AtomicRule rule) {
       _parser.DebugLog("{0}", rule);
       if (rule.Directions.Count != 1) throw Error.Assert("direction count");
       for (int i = 0; i < rule.Patterns.Count; i++) {
@@ -125,9 +124,6 @@ namespace PuzzLangLib {
     AtomicRule MakeAbsolute(AtomicRule rule, Direction ruledir) {
       var newrule = rule.Clone();
       newrule.Directions = new List<Direction> { ruledir };
-      //var changed = !(newrule.Directions.Count == 1 && newrule.Directions[0] == ruledir);
-      //if (changed) 
-      //  newrule.Directions = new List<Direction> { ruledir };
       MakeAbsolute(newrule.Patterns, ruledir);
       if (newrule.HasAction) MakeAbsolute(newrule.Actions, ruledir);
       return newrule;
@@ -135,71 +131,154 @@ namespace PuzzLangLib {
 
     void MakeAbsolute(IList<SubRule> subrules, Direction ruledir) {
       foreach (var subrule in subrules) {
-        foreach (var cell in subrule.Cells) {
-          for (int i = 0; i < cell.Count; i++) {
-            var newdir = Rotate(cell[i].Direction, ruledir);
-            if (newdir != cell[i].Direction)
-              cell[i] = cell[i].Clone(newdir);
+        foreach (var atoms in subrule.Cells) {
+          for (int i = 0; i < atoms.Count; i++) {
+            var newdir = Rotate(atoms[i].Direction, ruledir);
+            if (newdir != atoms[i].Direction)
+              atoms[i] = atoms[i].Clone(newdir);
           }
         }
       }
     }
 
-    // expand a rule replacing combination directions by individuals (absolute or relative)
-    // each rule sequence processed separately, one substitution for each combo in the pattern
-    // one subst in pattern => may cause N subst in action, but actions do not multiply
+    // expand a rule where an occurrence on an action does not match its pattern
+    // replacing combination directions and symbols by individuals (absolute or relative)
+    // could be fixed by more powerful vm code
     IList<AtomicRule> ExpandRule(AtomicRule oldrule) {
-      // check each subrule
+
+      if (!oldrule.HasAction) return ExpandPatternRule(oldrule);
+
+      // check each subrule, look for a replaceable direction
       for (var isubrule = 0; isubrule < oldrule.Patterns.Count; isubrule++) {
         var pattern = oldrule.Patterns[isubrule];
-        var action = (oldrule.HasAction) ? oldrule.Actions[isubrule] : null;
+        for (var icellp = 0; icellp < pattern.Cells.Count; ++icellp) {
+          var patoms = pattern.Cells[icellp];
+          var action = oldrule.Actions[isubrule];
+          var aatoms = action.Cells[icellp];
 
-        // find indexes for atoms containing replaceable directions
-        var icells = Enumerable.Range(0, pattern.Cells.Count)
-          .Where(x => pattern.Cells[x]
-            .Any(a => _expanddirlookup.ContainsKey(a.Direction))).ToList();
+          // check for action atom with ambiguous direction and no matching pattern atom
+          var datom = aatoms.FirstOrDefault(a => _expanddirlookup.ContainsKey(a.Direction));
+          if (datom != null && !patoms.Any(a => a.Symbol == datom.Symbol && a.Direction == datom.Direction))
+            return ExpandDirection(oldrule, datom.Direction);
 
-        // if found, clone the rule and perform the substitutions
-        if (icells.Count > 0) {
-          var icell = icells.First();
-          var newrules = new List<AtomicRule>();
-          var olddir = pattern.Cells[icell]
-            .Select(r => r.Direction)
-            .First(d => _expanddirlookup.ContainsKey(d));
-
-          // clone it, fix pattern and action (if any)
-          foreach (var newdir in _expanddirlookup[olddir]) {
-            var newrule = oldrule.Clone();
-            newrule.Patterns[isubrule].Cells[icell] = ReplaceDirection(pattern.Cells[icell], olddir, newdir);
-            // if there was only one match replace all, else just do the matching cell
-            if (oldrule.HasAction) {
-              if (icells.Count > 1)
-                newrule.Actions[isubrule].Cells[icell] = ReplaceDirection(action.Cells[icell], olddir, newdir);
-              else {
-                for (int i = 0; i < action.Cells.Count; i++)
-                  newrule.Actions[isubrule].Cells[i] = ReplaceDirection(action.Cells[i], olddir, newdir);
-              }
-              // Expand each rule recursively ready for return
-              // BUG: expanded rule may still contain expandable directions in action
-              newrules.AddRange(ExpandRule(newrule));
-            }
-          }
-          return newrules;
+          // check for action atom with property symbol and no matching pattern atom
+          var satom = aatoms.FirstOrDefault(a => a.Symbol.Kind == SymbolKind.Property
+            && !a.IsNegated && a.Direction != Direction.Random);
+          if (satom != null && !patoms.Any(a => a.Symbol == satom.Symbol && !a.IsNegated))
+            return ExpandSymbol(oldrule, satom.Symbol);
         }
       }
-      // there was nothing to do
+      return ExpandPatternRule(oldrule);
+    }
+
+    // expand a rule pattern and optionally the matching action
+    // replacing combination directions and symbols by individuals (absolute or relative)
+    // could be fixed by more powerful vm code
+    IList<AtomicRule> ExpandPatternRule(AtomicRule oldrule) {
+
+      // check each subrule, look for a replaceable direction
+      for (var isubrule = 0; isubrule < oldrule.Patterns.Count; isubrule++) {
+        var pattern = oldrule.Patterns[isubrule];
+        for (var icellp = 0; icellp < pattern.Cells.Count; ++icellp) {
+          var patoms = pattern.Cells[icellp];
+
+          // look for any ambiguous unmatched pattern directions, just one each time
+          var patom = patoms.FirstOrDefault(a => _expanddirlookup.ContainsKey(a.Direction));
+          if (patom != null)
+            return ExpandDirection(oldrule, patom.Direction, isubrule, icellp);
+        }
+      }
       return new List<AtomicRule> { oldrule };
     }
 
-    private IList<RuleAtom> ReplaceDirection(IList<RuleAtom> seq, Direction olddir, Direction newdir) {
-      IList<RuleAtom> newseq = null;
-      for (var i = 0; i < seq.Count; i++) {
-        if (seq[i].Direction == olddir) {
-          if (newseq == null) newseq = new List<RuleAtom>(seq);
-          newseq[i] = seq[i].Clone(newdir);
+    // expand an OR symbol throughout a rule
+    // error if more than one in pattern
+    IList<AtomicRule> ExpandSymbol(AtomicRule oldrule, ObjectSymbol oldsym) {
+      var pcells = oldrule.Patterns.SelectMany(p => p.Cells
+        .SelectMany(c => c.Where(a => a.Symbol == oldsym && !a.IsNegated)));
+      if (pcells.Count() != 1)
+        _parser.CompileError("'{0}' in action cannot be matched", oldsym.Name);
+      var newrules = new List<AtomicRule>();
+      foreach (var newsym in oldsym.ObjectIds) {
+        var newrule = oldrule.Clone();
+        for (var isubrule = 0; isubrule < oldrule.Patterns.Count; isubrule++) {
+          var pattern = oldrule.Patterns[isubrule];
+          var action = oldrule.Actions[isubrule];
+          for (var icellp = 0; icellp < pattern.Cells.Count; ++icellp) {
+            var pcell = pattern.Cells[icellp];
+            for (var iatom = 0; iatom < pcell.Count; ++iatom) {
+              newrule.Patterns[isubrule].Cells[icellp] = ReplaceObject(pattern.Cells[icellp], oldsym, newsym);
+              newrule.Actions[isubrule].Cells[icellp] = ReplaceObject(action.Cells[icellp], oldsym, newsym);
+            }
+          }
+        }
+        newrules.AddRange(ExpandRule(newrule));
+      }
+      return newrules;
+    }
+
+    private IList<RuleAtom> ReplaceObject(IList<RuleAtom> cell, ObjectSymbol oldsym, int newobj) {
+      IList<RuleAtom> newcell = null;
+      for (var i = 0; i < cell.Count; i++) {
+        if (cell[i].Symbol == oldsym  && !cell[i].IsNegated) {
+          if (newcell == null) newcell = new List<RuleAtom>(cell);
+          newcell[i] = cell[i].Clone(_parser.GetSymbol(newobj));
         }
       }
-      return newseq ?? seq;
+      return newcell ?? cell;
+    }
+
+    // expand an ambiguous direction throughout a rule
+    // error if more than one in pattern
+    IList<AtomicRule> ExpandDirection(AtomicRule oldrule, Direction olddir) {
+      var pcells = oldrule.Patterns.SelectMany(p => p.Cells
+        .SelectMany(c => c.Where(a => a.Direction == olddir)));
+      if (pcells.Count() != 1)
+        _parser.CompileError("'{0}' in action cannot be matched", olddir);
+      var newrules = new List<AtomicRule>();
+      foreach (var newdir in _expanddirlookup[olddir]) {
+        var newrule = oldrule.Clone();
+        for (var isubrule = 0; isubrule < oldrule.Patterns.Count; isubrule++) {
+          var pattern = oldrule.Patterns[isubrule];
+          var action = oldrule.Actions[isubrule];
+          for (var icellp = 0; icellp < pattern.Cells.Count; ++icellp) {
+            var pcell = pattern.Cells[icellp];
+            for (var iatom = 0; iatom < pcell.Count; ++iatom) {
+              newrule.Patterns[isubrule].Cells[icellp] = ReplaceDirection(pattern.Cells[icellp], olddir, newdir);
+              newrule.Actions[isubrule].Cells[icellp] = ReplaceDirection(action.Cells[icellp], olddir, newdir);
+            }
+          }
+        }
+        newrules.AddRange(ExpandRule(newrule));
+      }
+      return newrules;
+    }
+
+    // limited substitution of pattern direction
+    IList<AtomicRule> ExpandDirection(AtomicRule oldrule, Direction olddir, int isubrule, int icell) {
+      var pattern = oldrule.Patterns[isubrule];
+      var newrules = new List<AtomicRule>();
+      foreach (var newdir in _expanddirlookup[olddir]) {
+        var newrule = oldrule.Clone();
+        newrule.Patterns[isubrule].Cells[icell] = ReplaceDirection(pattern.Cells[icell], olddir, newdir);
+        if (oldrule.HasAction) {
+          var action = oldrule.Actions[isubrule];
+          newrule.Actions[isubrule].Cells[icell] = ReplaceDirection(action.Cells[icell], olddir, newdir);
+        }
+        newrules.AddRange(ExpandRule(newrule));
+      }
+      return newrules;
+    }
+
+    private IList<RuleAtom> ReplaceDirection(IList<RuleAtom> cell, Direction olddir, Direction newdir) {
+      IList<RuleAtom> newcell = null;
+      for (var i = 0; i < cell.Count; i++) {
+        if (cell[i].Direction == olddir) {
+          if (newcell == null) newcell = new List<RuleAtom>(cell);
+          newcell[i] = cell[i].Clone(newdir);
+        }
+      }
+      return newcell ?? cell;
     }
 
     // Generate code for pattern rule in given direction
@@ -237,24 +316,24 @@ namespace PuzzLangLib {
       // each separate pattern: [ | | | ]
       var trailindex = 0;
       for (int i = 0; i < patterns.Count; i++) {
-        var pic = patterns[i].Cells;
+        var picells = patterns[i].Cells;
         // each separate cell in pattern [ | cell | ]
         // check pattern still matches
-        for (int j = 0; j < pic.Count; j++) {
-          if (pic[j].Any(a => a.HasObject)) {
+        for (int j = 0; j < picells.Count; j++) {
+          if (picells[j].Any(a => a.HasObject)) {
             EmitTrail(trailindex + j);
-            foreach (var atom in pic[j])
+            foreach (var atom in picells[j])
               EmitCheck(atom);
           }
         }
         // make changes (but always skip ellipsis)
-        for (int j = 0; j < pic.Count; j++) {
-          if (pic[j].Any(a => !a.IsEllipsis)) {
+        for (int j = 0; j < picells.Count; j++) {
+          if (picells[j].Any(a => !a.IsEllipsis)) {
             EmitTrail(trailindex + j);
-            CompileAction(ruledir, pic[j], actions[i].Cells[j]);
+            CompileAction(ruledir, picells[j], actions[i].Cells[j]);
           }
         }
-        trailindex += pic.Count;
+        trailindex += picells.Count;
       }
       if (Logger.Level >= 3) _gen.Decode("action", Logger.Out);
       return _gen.Code;
@@ -262,23 +341,36 @@ namespace PuzzLangLib {
 
     // Compile code for changing objects or movements
     // arguments are unordered lists of pattern atoms for corresponding cells
-    void CompileAction(Direction ruledir, IList<RuleAtom> patterns, IList<RuleAtom> actions) {
+    void CompileAction(Direction ruledir, IList<RuleAtom> patoms, IList<RuleAtom> aatoms) {
 
       // handle patterns that match and those that do not
-      foreach (var pattern in patterns)
-        CompileActionMatchups(pattern, actions.FirstOrDefault(a => a.Symbol.Matches(pattern.Symbol)), ruledir);
+      foreach (var patom in patoms)
+        CompileActionMatchups(patom, aatoms.FirstOrDefault(a => a.Symbol.Matches(patom.Symbol)), ruledir);
       // handle actions that do not match
-      foreach (var action in actions.Where(a => !patterns.Any(p => p.Symbol.Matches(a.Symbol))))
-        CompileActionMatchups(null, action, ruledir);
+      if (aatoms.Any(a => a.Direction == Direction.Random))
+        CompileRandomAction(aatoms.Where(a => !patoms.Any(p => p.Symbol.Matches(a.Symbol))));
+      else foreach (var aatom in aatoms.Where(a => !patoms.Any(p => p.Symbol.Matches(a.Symbol))))
+          CompileActionMatchups(null, aatom, ruledir);
     }
 
+    // emit code for the 'random' special case
+    void CompileRandomAction(IEnumerable<RuleAtom> aatoms) {
+      var objids = aatoms.SelectMany(a => a.Symbol.ObjectIds);
+      EmitCreate(new HashSet<int>(objids), Direction.Random);
+    }
+
+    // emit code for a 'best available' match of two atoms; either can be null or negated
     void CompileActionMatchups(RuleAtom patom, RuleAtom aatom, Direction ruledir) {
       var pobj = patom?.Symbol.ObjectIds;
       var aobj = aatom?.Symbol.ObjectIds;
       var haspobj = !(patom == null || patom.IsNegated || pobj.Count == 0);
       var hasaobj = !(aatom == null || aatom.IsNegated || aobj.Count == 0);
 
-      if (!haspobj && !hasaobj) {
+      if (aatom != null && aatom.IsNegated) {
+        if (!(patom != null && patom.IsNegated)) {
+          EmitDestroy(aobj); // TODO: test
+        }
+      } else if (!haspobj && !hasaobj) {
 
       // pattern only
       } else if (haspobj && !hasaobj) {
@@ -338,7 +430,7 @@ namespace PuzzLangLib {
 
     MatchOperator GetOper(RuleAtom cell) {
       return cell.IsNegated ? MatchOperator.No
-        : cell.Symbol.Kind == SymbolKind.Pile ? MatchOperator.All 
+        : cell.Symbol.Kind == SymbolKind.Aggregate ? MatchOperator.All 
         : MatchOperator.Any;
     }
 

@@ -58,7 +58,7 @@ namespace PuzzLangLib {
     }
 
     public override string ToString() {
-      return "{{{0}}}".Fmt(Code.Count);
+      return "#{0}".Fmt(Code.Count);
     }
   }
 

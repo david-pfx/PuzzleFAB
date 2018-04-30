@@ -118,7 +118,7 @@ TextMesh:
   m_CharacterSize: 0.14
   m_LineSpacing: 1
   m_Anchor: 4
-  m_Alignment: 1
+  m_Alignment: 0
   m_TabSize: 4
   m_FontSize: 72
   m_FontStyle: 0
@@ -126,7 +126,7 @@ TextMesh:
   m_Font: {fileID: 12800000, guid: 9bf61d3e3a6f3314a9054bdf6af74849, type: 3}
   m_Color:
     serializedVersion: 2
-    rgba: 4278190335
+    rgba: 4294901959
 --- !u!114 &114158577253970518
 MonoBehaviour:
   m_ObjectHideFlags: 1
@@ -139,6 +139,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   TileText: {fileID: 1003092872565066}
+  CellIndex: {x: 0, y: 0}
+  ObjectId: 0
 --- !u!212 &212771268030015858
 SpriteRenderer:
   m_ObjectHideFlags: 1

@@ -88,7 +88,7 @@ namespace PuzzLangTest {
     static string _game_prbg =
        "(pre):;" +
       "@(obj):Background;black;;PLAYER P;white;;R;RED;;B;BLUE;;G;green;;Y;yellow;;K;Pink;;" +
-      "@(leg):. = Background;a = R and K;o = R or G or B or Y;" +
+      "@(leg):. = Background;a = R and K;o = R or G or B or Y;ork = R or K;oyk = Y or K" +
       "@(col):Background;Y;Player,R,B,G;K;" +
       "@(rul):[ > P | a] -> [ > P | > a];" +
       "@(win):no p;" +

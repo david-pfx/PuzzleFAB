@@ -140,7 +140,7 @@ namespace PuzzLangLib {
         if (_gamedef.Clickables.Contains(obj)) {
           var locator = Locator.Create(cellindex, _gamedef.GetLayer(obj));
           _movers.Add(Mover.Create(obj, locator, _input));
-          Logger.WriteLine(2, "Mover add {0} to {1} at {2}", _input, _gamedef.GetName(obj), locator);
+          Logger.WriteLine(2, "Mover click {0} to {1} at {2}", _input, _gamedef.ShowName(obj), locator);
         }
       }
     }
@@ -153,7 +153,7 @@ namespace PuzzLangLib {
       foreach (var player in _gamedef.Players)
         foreach (var locator in FindObject(player)) {
           _movers.Add(Mover.Create(player, locator, _input));
-          Logger.WriteLine(2, "Mover add {0} to {1} at {2}", _input, _gamedef.GetName(player), locator);
+          Logger.WriteLine(2, "Mover input {0} to {1} at {2}", _input, _gamedef.ShowName(player), locator);
         }
     }
 
@@ -240,7 +240,7 @@ namespace PuzzLangLib {
       Logger.WriteLine(4, "ApplyRuleGroups {0}", groups.Count);
 
       // work through each rule group or loop group in source code order
-      for (var groupno = 0; groupno < groups.Count; ++groupno) {
+      for (var groupno = 0; groupno < groups.Count; ) {
         var group = groups[groupno];
         var loop = group.Loop;  // id for loop, 0 if not
 
@@ -248,28 +248,25 @@ namespace PuzzLangLib {
         if (loop == 0) {
           if (ApplyRuleGroup(group))
             _rulestate.HasChanged = true;
+          ++groupno;
 
         // if in a group loop, repeat the whole set until no change
         } else {
-          Logger.WriteLine(3, "Start loop {0}", loop);
-          var loopchange = false;
-          var loopstart = groupno;
+          int gno;
           for (var retry = 0; ; ++retry) {
             if (retry > 100) throw Error.Fatal("too many rule loops: <{0}>", group);
+            Logger.WriteLine(3, "Start loop {0} retry={1}", loop, retry);
 
             // do all the rule groups in the loop block
             var groupchange = false;
-            var nextloop = loop;
-            for (groupno = loopstart; nextloop == loop;) {
-              group = groups[groupno];
-              if (ApplyRuleGroup(group))
+            for (gno = groupno; gno < groups.Count && groups[gno].Loop == group.Loop; ++gno) {
+              if (ApplyRuleGroup(groups[gno]))
                 groupchange = true;
-              nextloop = (++groupno < groups.Count) ? groups[groupno].Loop : 0;
             }
-            loopchange |= groupchange;
             if (!groupchange) break;
+            _rulestate.HasChanged = true;
           }
-          _rulestate.HasChanged |= loopchange;
+          groupno = gno;
         }
       }
       Logger.WriteLine(4, "[ARGS {0}]", _rulestate.HasChanged);
@@ -283,25 +280,24 @@ namespace PuzzLangLib {
       // skip this group -- it failed rigid previously
       if (_disabledgrouplookup.Contains(group)) return false;
 
-      // rule group is needed to track rigid
-      _rulestate.RuleGroup = group;
       var groupchange = false;
 
-      // Apply a single rule chosen at random 
-      // TODO: pick from available matches
-      if (group.IsRandom) { 
-        var n = _model.Rng.Next(group.Rules.Count);
-        groupchange = _rulestate.Apply(group.Rules[n]);
+      // Apply a single match chosen at random
+      if (group.IsRandom) {
+        var matches = _rulestate.FindMatches(group);
+        if (matches.Count > 0) {
+          var n = _model.Rng.Next(matches.Count);
+          _rulestate.DoActions(group, new List<RuleMatch> { matches[n] });
+          groupchange = true;
+        }
 
-      // Apply all the rules in the group
+      // Find all matches and do all actions for all the rules in the group
       // loop until no more changes, return true if there were any
       } else {
         for (var retry = 0; ; ++retry) {
           if (retry > 200) throw Error.Fatal("too many rule group retries: <{0}>", group);
-          var rulechange = false;
-          foreach (var rule in group.Rules)
-            if (_rulestate.Apply(rule))
-              rulechange = true;
+          var matches = _rulestate.FindMatches(group);
+          var rulechange = _rulestate.DoActions(group, matches);
           groupchange |= rulechange;
           if (!rulechange) break;
         }
@@ -325,7 +321,7 @@ namespace PuzzLangLib {
           var dups = _movers.Where(m => Destination(m).Equals(newloc));
           foreach (var dup in dups.Skip(1).ToArray()) {  // avoid modifying collection
             if (NoFailRigid(mover)) return;
-            _model.VerboseLog("Blocked duplicate move {0} to {1}", _gamedef.GetName(mover.ObjectId), mover.Locator.Index);
+            _model.VerboseLog("Blocked duplicate move {0} to {1}", _gamedef.ShowName(mover.ObjectId), mover.Locator.Index);
             _movers.Remove(dup);
           }
         }
@@ -344,13 +340,13 @@ namespace PuzzLangLib {
         foreach (var mover in blocked) {
           _level[mover.Locator] = mover.ObjectId;
           if (NoFailRigid(mover)) return;
-          Logger.WriteLine(3, "Blocked  move {0} to {1}", _gamedef.GetName(mover.ObjectId), mover.Locator.Index);
+          Logger.WriteLine(3, "Blocked  move {0} to {1}", _gamedef.ShowName(mover.ObjectId), mover.Locator.Index);
           _movers.Remove(mover);
         }
       }
       // 4.Insert movers into level at new location, count it
       if (_movers.Count > 0)
-        _model.VerboseLog("Make moves: {0}", _movers.Select(m=>_gamedef.GetName(m.ObjectId)).Join());
+        _model.VerboseLog("Make moves: {0}", _movers.Select(m=>_gamedef.ShowName(m.ObjectId)).Join());
       MoveCounter += _movers.Count;
       foreach (var mover in _movers) {
         _level[Destination(mover)] = mover.ObjectId;

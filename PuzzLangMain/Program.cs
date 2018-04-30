@@ -41,12 +41,16 @@ namespace PuzzLangMain {
     static List<Pair<string, string>> _settings = new List<Pair<string, string>>();
     static Encoding _encoding = Encoding.UTF8;
     static bool _timing;
+    //static string _skip = "";    // default unless overridden
     static string _skip = "62,32";    // default unless overridden
     static bool _xdebug = false;
 
     static readonly Dictionary<string, Action<string>> _options
-      = new Dictionary<string, Action<string>>(StringComparer.CurrentCultureIgnoreCase) {
+      = new Dictionary<string, Action<string>>(StringComparer.OrdinalIgnoreCase) {
+        { "again",    (a) => { _settings.Add(Pair.Create("pause_on_again","true")); } },
+        { "debug",    (a) => { _settings.Add(Pair.Create("debug","true")); } },
         { "encode",   (a) => { _encodelevel = true; } },
+        { "endlevel", (a) => { _settings.Add(Pair.Create("pause_at_end_level","true")); } },
         { "filter",   (a) => { _filter = a; } },
         { "hack",     (a) => { _hack = a; } },
         { "gist",     (a) => { _gist = a ?? "0ebbe5e1f0761a87cc7aeace0d5e4b8e"; } },
@@ -56,15 +60,12 @@ namespace PuzzLangMain {
         { "jtsingle", (a) => { _jtsingle = true; } },
         { "jconvert", (a) => { _jconvert = a ?? "jsonconvert"; } },
         { "jctest",   (a) => { _jctest = a ?? "jsonconvert"; } },
-        { "skip",     (a) => { _skip = a; } },
         { "level",    (a) => { _startlevel = a; } },
+        { "skip",     (a) => { _skip = a; } },
         { "static",   (a) => { _static = true; } },
         { "take",     (a) => { _take = a.SafeIntParse() ?? 9999; } },
-        { "debug",    (a) => { _settings.Add(Pair.Create("debug","true")); } },
-        { "verbose",  (a) => { _settings.Add(Pair.Create("verbose_logging","true")); } },
         { "timing",   (a) => {  _timing = true; _settings.Add(Pair.Create("statistics_logging","true")); } },
-        { "again",    (a) => { _settings.Add(Pair.Create("pause_on_again","true")); } },
-        { "endlevel", (a) => { _settings.Add(Pair.Create("pause_at_end_level","true")); } },
+        { "verbose",  (a) => { _settings.Add(Pair.Create("verbose_logging","true")); } },
         { "xdebug",   (a) => { _xdebug = true; } },
       };
 
@@ -78,18 +79,23 @@ namespace PuzzLangMain {
 
       // trigger options here to avoid having to change debug conditions
       if (_xdebug) {
-        options.Parse(new string[] { @"..\UnityPlayer\Assets\Resources\New Puzzles\loops_of_zen.txt", "/3", "/input=fire1 12" });
-        //options.Parse(new string[] { @"..\UnityPlayer\User Puzzles\2048.txt", "/3", "/input=right" });
-        //options.Parse(new string[] { @".\testgames\input_click.txt", "/503", "/input=hover 2" });
-        //options.Parse(new string[] { @"..\UnityPlayer\TestGames\New\loops_of_zen.txt", "/3", "/input=fire1 12" });
-        //options.Parse(new string[] { @".\testgames\ellipsisnodup.txt", "/403", "/input=right", "/endl" });
-        //options.Parse(new string[] { @".\jsonconvert\117-Rigidbody fix bug #246.txt", "/201", "/input=up,up" });
+        //options.Parse(new string[] { @".\jsonconvert\085-Sok7.txt", "/2" });
+        options.Parse(new string[] { "/2" });
         //options.Parse(new string[] { "/3", "/input=action,right,right,left,right" });
+
+        //options.Parse(new string[] { @".\test puzzles\basicloop.txt", "/502", "/input=right" });
+        //options.Parse(new string[] { @"..\UnityPlayer\Test Puzzles\new\2048.txt", "/3", "/input=right" });
+        //options.Parse(new string[] { @".\test puzzles\rigid.txt", "/502", "/input=right,right,right,down,right" });
+        //options.Parse(new string[] { @".\test puzzles\laserblock.txt", "/3", "/input=right" });
+        //options.Parse(new string[] { @"..\UnityPlayer\Assets\Resources\New Puzzles\loops_of_zen.txt", "/3", "/input=fire1 12" });
+        //options.Parse(new string[] { @".\test puzzles\input_click.txt", "/503", "/input=hover 2" });
+        //options.Parse(new string[] { @"..\UnityPlayer\test puzzles\New\loops_of_zen.txt", "/3", "/input=fire1 12" });
+        //options.Parse(new string[] { @".\test puzzles\ellipsisnodup.txt", "/403", "/input=right", "/endl" });
+        //options.Parse(new string[] { @".\jsonconvert\117-Rigidbody fix bug #246.txt", "/201", "/input=up,up" });
         //options.Parse(new string[] { "/jct", "/0" });
         //options.Parse(new string[] { @".\demo\collapse.txt", "/403", "/lev=3", "/input=up,right,right,right" });
-        //options.Parse(new string[] { @".\testgames\rigid.txt", "/3", "/input=right,right,right,down,right", "/endl" });
-        //options.Parse(new string[] { @".\testgames\ellipsisdrag.txt", "/403", "/input=right", "/endl" });
-        //options.Parse(new string[] { @".\testgames\ellipsisfill.txt", "/403", "/input=right", "/endl" });
+        //options.Parse(new string[] { @".\test puzzles\ellipsisdrag.txt", "/403", "/input=right", "/endl" });
+        //options.Parse(new string[] { @".\test puzzles\ellipsisfill.txt", "/403", "/input=right", "/endl" });
         //options.Parse(new string[] { @".\demo\tiny treasure hunt.txt", "/2", "/input=action,action,action", "/endl" });
         //options.Parse(new string[] { @".\demo\microban.txt", "/2", "/input=action,action,action", "/endl" });
         //options.Parse(new string[] { @".\demo\dropswap.txt", "/2", "/input=action,action,action", "/endl" });
@@ -235,7 +241,7 @@ namespace PuzzLangMain {
         { "Target level: ", s=> _startlevel = s },
         { "Final state: ",  s=> finalstate = s.Replace(";", "\n") },
       };
-      _output.WriteLine($"Json conv test: '{path}'.");
+      _output.WriteLine($"\nJson conv test: '{path}'.");
       var counter = Path.GetFileName(path).Left(3).SafeIntParse() ?? 0;
       var script = File.ReadAllText(path) + "\r\n";
 
@@ -305,7 +311,7 @@ namespace PuzzLangMain {
 
     static void RunJsonTest(string title, string script, string inputs, string startlevel, string finalstate,
       int counter = 0, double randomseed = 0) {
-      _output.WriteLine("\n{0}: '{1}' inputs:{2} target:{3}",
+      _output.WriteLine("{0}: '{1}' inputs:{2} target:{3}",
         counter, title, inputs?.SplitTrim().Count, startlevel);
 
       script = script.Replace("verbose_logging", "(verbose_logging)").Replace("debug", "(debug)");

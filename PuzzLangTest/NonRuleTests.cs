@@ -39,7 +39,7 @@ namespace PuzzLangTest {
     }
 
     [TestMethod]
-    public void Sprite() {
+    public void SpriteSizeText() {
       var setup =
        "(pre):;" +
       "@(obj):Background;black;;PLAYER P;white;;R;RED;;B;BLUE;;G;green;;Y;yellow;;K;Pink;;" +
@@ -48,7 +48,7 @@ namespace PuzzLangTest {
               "obj8b;Red DarkRed LightRed Brown DarkBrown LightBrown Orange Yellow;012;345;670;;" +
               "obj8c;Green DarkGreen LightGreen Blue LightBlue DarkBlue Purple Pink;012;345;670;;" +
               "objs left 0.5;Red;0.;.0;;" +
-              "objt t 0.5;Red green;message hello world!;;" +
+              "objt 0.5;Red green;message hello world!;;" +
       "@(col):Background;Y;Player,R,B,G;K;obj2x2,obj8a,obj8b,obj8c,objs,objt;" +
               "";
 
@@ -62,10 +62,10 @@ namespace PuzzLangTest {
       CheckObject(engine.GameDef.GetObject(13), "objt",       5, 0.5f, 1, "8", 16, "hello world!");
     }
 
-    void CheckObject(PuzzleObject obj, string name, int layer, float height, int width, string sprite, int tcolour, string text) {
+    void CheckObject(PuzzleObject obj, string name, int layer, float scale, int width, string sprite, int tcolour, string text) {
       Assert.AreEqual(name, obj.Name);
       Assert.AreEqual(layer, obj.Layer);
-      Assert.AreEqual(height, obj.Height);
+      Assert.AreEqual(scale, obj.Scale);
       Assert.AreEqual(width, obj.Width);
       Assert.AreEqual(sprite, obj.Sprite.Join());
       Assert.AreEqual(tcolour, obj.TextColour);

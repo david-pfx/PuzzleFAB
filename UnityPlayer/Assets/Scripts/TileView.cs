@@ -16,13 +16,14 @@ using PuzzLangLib;
 
 public class TileView : MonoBehaviour {
   public GameObject TileText;
+  public Vector2Int CellIndex;
+  public int ObjectId = 0;
 
   MainController _main { get { return MainController.Instance; } }
   ModelInfo _modelinfo { get { return _main.ModelInfo; } }
   GameDef _def { get { return _main.GameDef; } }
 
   // puzzle cell index to display
-  internal Vector2Int CellIndex;
   // rectangle for hit testing
   internal Rect Rect;
 
@@ -31,7 +32,6 @@ public class TileView : MonoBehaviour {
   TextMesh _textmesh;
   Vector3 _position;
   Vector2 _size;
-  int _objectid = 0;
   DisplayMode _mode = DisplayMode.None;
   bool _visible = false;
 
@@ -76,28 +76,27 @@ public class TileView : MonoBehaviour {
   // use model to find the object to display, or not
   void SetSprite(bool force = false) {
     var objid = _main.GetObjectId(CellIndex);
-    if (!force && objid == _objectid) return;
+    if (!force && objid == ObjectId) return;
     var puzzobj = (objid == 0) ? null : _def.GetObject(objid);
-    var sprite = _modelinfo.GetSprite(objid);
+    _renderer.sprite = _modelinfo.GetSprite(objid);
 
     // Display either text or sprite -- cannot fix render order for both!
     if (puzzobj != null && puzzobj.Text != null) {
       _textmesh.text = puzzobj.Text;
       _textmesh.color = _modelinfo.ColorFromIndex(puzzobj.TextColour);
       var scale = _size.y;
-      _textmesh.gameObject.transform.localScale = new Vector3(scale, scale, 1);
+      transform.localScale = new Vector3(scale, scale, 1) * puzzobj.Scale;
       _mode = DisplayMode.Text;
-    } else if (sprite != null) {
+    } else if (_renderer.sprite != null) {
       if (CellIndex.x == _main.Model.CurrentLevel.Length - 1) Util.Trace(2, ">SetSprite {0}", CellIndex);
-      var cursize = sprite.bounds.size;
+      var cursize = _renderer.sprite.bounds.size;
       var scale = Math.Max(_size.x / cursize.x, _size.y / cursize.y);
-      transform.localScale = new Vector3(scale, scale, 0);
-      _renderer.sprite = sprite;
+      transform.localScale = new Vector3(scale, scale, 0) * puzzobj.Scale;
       _mode = DisplayMode.Sprite;
     } else {
       _mode = DisplayMode.Disable;
     }
-    _objectid = objid;  // no repeat unless object changes
+    ObjectId = objid;  // no repeat unless object changes
     _visible = false;   // trigger update
   }
 }

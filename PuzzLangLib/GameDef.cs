@@ -48,29 +48,32 @@ namespace PuzzLangLib {
 
   // used in win conditions and rule object matching
   internal enum MatchOperator {
-    None, No, Some, All,
+    None,
+    No, Some, All,
     Any,    // alias for Some
   }
 
   // used in defining mask and pile objects
   internal enum LogicOperator {
-    None, And, Or, Not,
+    None,
+    And, Or, Not,
   }
 
   // used in defining a symbol (just objects for now)
   internal enum SymbolKind {
     None,
-    Alias,   // real object with sprite
-    Pile,     // set of objects occupying single space, for level definition
-    Mask,     // set of objects sharing common property, for rule testing
-    Mixed,    // set of objects of mixed parentage -- usually an error
-    Text,     // text string
+    Real,         // real object with sprite
+    Aggregate,    // set of objects occupying single space, for level definition
+    Property,     // set of objects sharing common property, for rule testing
+    Mixed,        // set of objects of mixed parentage -- usually an error
+    Text,         // text string
   }
 
   // directions used in rules and sound triggers
   internal enum Direction {
+    None,
     // absolute directions, use for rules, patterns and actions
-    None, Up, Down, Left, Right,      // basic directions
+    Up, Down, Left, Right,      // basic directions
     Horizontal, Vertical, Orthogonal, // combos of the above
     // note: Orthogonal must be last in above group
     // absolute directions, patterns and actions only
@@ -132,7 +135,7 @@ namespace PuzzLangLib {
     public string Name;
     public int Layer;               // layer on which to display
     public Pair<float,float> Pivot; // fixed point relative to cell
-    public double Height;           // size of image (1.0 = size of cell)
+    public float Scale;           // size of image (1.0 = size of cell)
     public int Width;               // sprite width in pixels
     public IList<int> Sprite;       // list of colours for each pixel
     public string Text;             // string to display over sprite
@@ -286,6 +289,10 @@ namespace PuzzLangLib {
 
     public string GetName(int obj) {
       return (obj == 0) ? "(--)" : PuzzleObjects[obj - 1].Name;
+    }
+
+    public string ShowName(int obj) {
+      return (obj == 0) ? "(0)" : "{0} ({1})".Fmt(GetName(obj), obj);
     }
 
     //--- sounds

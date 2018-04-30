@@ -245,14 +245,12 @@ namespace PuzzLangLib {
     // show all objects in level using sorted integers
     void ShowLevel(string message, Level level) {
       Logger.WriteLine(0, "At {0} level: '{0}'", message, level.Name);
-      Func<int, char> tochar = n => (char)((n == 0) ? '.' : (n <= 9) ? '0' + n : 'A' + n - 10);
 
       var objs = Enumerable.Range(0, level.Length)
         .Select(x => level
           .GetObjects(x)
-          .OrderBy(o => o)
-          .Select(o => tochar(o))
-          .Join(""))
+          .Select(o => o.ToString())
+          .Join())
         .ToList();
       var wid = objs.Max(o => o.Length) + 1;
       var text = objs.Select(o => o.PadRight(wid - 1)).Join("|");

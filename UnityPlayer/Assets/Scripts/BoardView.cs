@@ -16,20 +16,23 @@ using UnityEngine;
 using PuzzLangLib;
 
 public class BoardView : MonoBehaviour {
-  public Vector3 Position;
   public GameObject TilePrefab;
 
   GameModel _model { get { return _main.Model; } }
   MainController _main { get { return MainController.Instance; } }
+  Vector2 _boardsize;
   SpriteRenderer _renderer;
   List<GameObject> _tiles = new List<GameObject>();
+
+  internal void Setup(Vector2 boardsize) {
+    _boardsize = boardsize;
+  }
 
   void Start() {
     // set size to cover given area
     _renderer = GetComponent<SpriteRenderer>();
-    var size = _renderer.sprite.bounds.size;
-    var scale = Math.Max(Position.x / size.x, Position.y / size.y);
-    transform.localScale = new Vector3(scale, scale, 0);  // FIXME
+    var ssize = _renderer.sprite.bounds.size;
+    _renderer.transform.localScale = new Vector3(_boardsize.x / ssize.x, _boardsize.y / ssize.y, 0);
   }
 
   // update our state
@@ -87,7 +90,7 @@ internal void CreateTiles(Vector3Int layout, float scale, int levelwidth, GameOb
       }
       cellindex += levelwidth;
     }
-    Util.Trace(1, ">[CT done {0}]", layout.x * layout.y * layout.z);
+    Util.Trace(2, ">[CT done {0}]", layout.x * layout.y * layout.z);
   }
 
   // destroy board and all objects on it

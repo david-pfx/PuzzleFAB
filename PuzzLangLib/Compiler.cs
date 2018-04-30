@@ -18,11 +18,20 @@ using System.Linq;
 
 namespace PuzzLangLib {
   public class Compiler {
-    public TextWriter Out { get; private set; }
+    // source name to display in messages
     public string SourceName { get; private set; }
-    public bool Success { get { return _parser.ErrorCount == 0; } }
-    public GameModel Model { get; private set; }
+    // settings to use for compile and model
     public IList<Pair<string, string>> Settings = null;
+    // output produced during compile
+    public TextWriter Out { get; private set; }
+    // result of compile, if successful
+    public GameModel Model { get; private set; }
+    // result of compile
+    public bool Success { get { return _parser.ErrorCount == 0; } }
+    // explanation, if compile failed
+    public string Message { get; private set; }
+    // for testing purposes only
+    public IList<string> RuleExpansions { get { return _parser.AtomicRules.Select(r=>r.ToString()).ToList(); } }
 
     internal ParseManager _parser;
     bool _parseerror = false;
@@ -52,7 +61,7 @@ namespace PuzzLangLib {
           for (int z = 1; z <= level.Depth; z++) {
             var obj = level[x, y, z];
             if (obj != 0) {
-              objs.Add(_parser.SymbolName(obj).ToLower());
+              objs.Add(_parser.GetSymbolName(obj).ToLower());
             }
           }
           objs.Sort();
@@ -80,15 +89,21 @@ namespace PuzzLangLib {
         if (e.Data.Contains("cursor")) {
           var state = e.Data["cursor"] as Cursor;
           var offset = Math.Max(0, state.Location - 30);
-          var source = program.Substring(offset, state.Location - offset)
-            + "(^)" + program.Substring(state.Location);
-          Out.WriteLine(source.Replace("\r\n", ";").Replace("\n", ";").Shorten(78));
-          Out.WriteLine($"*** '{SourceName}' at {state.Line},{state.Column}: parse error: {e.Message}");
+          var source = (program.Substring(offset, state.Location - offset)
+            + "(^)" + program.Substring(state.Location))
+            .Replace("\r", "").Replace("\n", ";");
+          Message = "{0}\n*** '{1}' at {2},{3}: parse error: {4}".Fmt(source.Shorten(78),
+            SourceName, state.Line, state.Column, e.Message);
+          Out.WriteLine(Message);
           _parseerror = true;
         } else {
           Out.WriteLine($"*** '{SourceName}': unexpected exception: {e.ToString()}");
           _parseerror = true;
         }
+      } catch (DOLEException e) {
+        Message = e.Message;
+        Out.WriteLine(Message);
+        _parseerror = true;
       }
       if (_parseerror)
         ++_parser.ErrorCount;

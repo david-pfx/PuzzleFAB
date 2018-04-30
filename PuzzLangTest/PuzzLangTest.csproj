@@ -65,10 +65,11 @@
     <Compile Include="JsonTestData.cs">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Compile>
+    <Compile Include="RuleTranslateTests.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="NonRuleTests.cs" />
     <Compile Include="StaticTestData.cs" />
-    <Compile Include="RuleTests.cs" />
+    <Compile Include="RuleActionTests.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config">

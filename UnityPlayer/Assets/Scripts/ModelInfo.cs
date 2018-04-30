@@ -42,6 +42,7 @@ internal class ModelInfo {
     _model = null;
     ScriptName = scriptname;
     try {
+      DOLE.Logger.Level = 0;
       var compiler = Compiler.Compile(scriptname, new StringReader(script), _logwriter);
       if (compiler.Success)
         _model = compiler.Model;
@@ -53,6 +54,7 @@ internal class ModelInfo {
     if (_model == null) return false;
 
     // set options required for proper timing; also logging
+    DOLE.Logger.Level = _main.Noisy;
     _model.GameDef.SetSetting(OptionSetting.pause_at_end_level, true);
     _model.GameDef.SetSetting(OptionSetting.pause_on_again, true);
     if (_main.VerboseLogging) _model.GameDef.SetSetting(OptionSetting.verbose_logging, true);

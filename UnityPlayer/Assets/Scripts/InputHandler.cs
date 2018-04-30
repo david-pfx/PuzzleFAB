@@ -37,6 +37,7 @@ public class InputHandler : MonoBehaviour {
     { KeyCode.S,          "select" },
     { KeyCode.Escape,     "escape" },
     { KeyCode.Space,      "action" },
+    { KeyCode.Equals,     "status" },
     { KeyCode.F12,        "status" },
   };
 
@@ -127,10 +128,10 @@ public class InputHandler : MonoBehaviour {
     _main.AcceptInput(_sm.CurrentInput);
     var newstate = CheckModel();
     if (_model.EndLevel) {
-      Util.Trace(2, "Endlevel defer {0}", 0.5f);
+      Util.Trace(1, "Endlevel defer {0}", 0.5f);
       StartCoroutine(DeferInput(0.5f, "tick"));
     } else if (_model.Againing) {
-      Util.Trace(2, "Againing defer {0}", _main.AgainInterval);
+      Util.Trace(1, "Againing defer {0}", _main.AgainInterval);
       StartCoroutine(DeferInput(_main.AgainInterval, "tick"));
     }
     return newstate;

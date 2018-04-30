@@ -33,6 +33,7 @@ public class UiManager : MonoBehaviour {
   GameModel _model { get { return _main.Model; } }
   GameDef _def { get { return _main.GameDef; } }
   EnablePanel _enable = EnablePanel.None;
+  string _title;
 
   // Use this for initialization
   void Start() {
@@ -45,67 +46,57 @@ public class UiManager : MonoBehaviour {
   void Update() {
       switch (_main.GameState) {
       case GameState.Error:
-        SetVisible(EnablePanel.Main);
-        TitleText.text = _main.ModelInfo.ScriptName;
-        MessageText.text = _main.Message;
-        StatusText.text = "Error! Q to Quit, R to Retry, S to Select";
+        SetText(_main.ModelInfo.ScriptName, _main.Message, "Error! Q to Quit, R to Retry, S to Select");
         break;
       case GameState.Intro:
         RestartLevelIndex = 0;
-        SetVisible(EnablePanel.Main);
-        TitleText.text = _def.GetSetting(OptionSetting.title, "unknown") +
-          "\nby " +
-          _def.GetSetting(OptionSetting.author, "anonymous");
+        _title = _def.GetSetting(OptionSetting.title, "unknown");
         var options = new List<string>();
         if (_def.GetSetting(OptionSetting.action, false)) options.Add("X to action");
         if (_def.GetSetting(OptionSetting.restart, true)) options.Add("R to restart");
         if (_def.GetSetting(OptionSetting.undo, true)) options.Add("Z to undo");
-        MessageText.text =
+        var intext ="\nby " + _def.GetSetting(OptionSetting.author, "anonymous") + "\n\n" +
           (_def.GetSetting(OptionSetting.arrows, false) ? "Arrow keys to move\n" : "") +
           (_def.GetSetting(OptionSetting.click, false) ? "Click to move\n" : "") +
           options.Join(", ") + "\n" +
           "S to Select, Q to Quit\n" +
           "Escape to Pause";
-        StatusText.text = "X or space to continue";
+        SetText(_title, intext, "X or space to continue");
         break;
+      case GameState.Level:
+        SetText(_title, "", "Level {0}".Fmt(_model.CurrentLevelIndex));
+      break;
       case GameState.Message:
-        SetVisible(EnablePanel.Main);
-        TitleText.text = _def.GetSetting(OptionSetting.title, "unknown");
-      MessageText.text = _model.CurrentMessage;
-        StatusText.text = "X or space to continue";
+        SetText(_title, _model.CurrentMessage, "X or space to continue");
         break;
       case GameState.Pause:
-        SetVisible(EnablePanel.Main);
-        TitleText.text = _def.GetSetting(OptionSetting.title, "unknown");
-      var text =
+        var pstext =
           "Paused on level {0}\n" +
           "\n" +
           "S to Select, Q to Quit\n" +
           "R to Restart at level {1}";
-        MessageText.text = text.Fmt(_model.CurrentLevelIndex, RestartLevelIndex);
-        StatusText.text = "X or space to continue";
+        SetText(_title, pstext.Fmt(_model.CurrentLevelIndex, RestartLevelIndex), "X or space to continue");
         break;
       case GameState.Select:
         SetVisible(EnablePanel.Selection);
         break;
       case GameState.GameOver:
-        SetVisible(EnablePanel.Main);
-        TitleText.text = _def.GetSetting(OptionSetting.title, "unknown");
-      MessageText.text =
-          "Game Over!\n" +
-          "\n" +
-          "S to Select, Q to Quit";
-        StatusText.text = "X or space to replay";
+        SetText(_title,  "Game Over!\n" + "\n" + "S to Select, Q to Quit",  "X or space to replay");
         break;
       case GameState.Status:
-        TitleText.text = "Status";
-        // MessageText.text set elsewhere 
-        StatusText.text = "Escape to cancel";
+        SetText("Status", "", "Escape to cancel");    // message text set elsewhere 
         break;
       default:
         SetVisible(EnablePanel.None);
         break;
       }
+  }
+
+  void SetText(string title, string message, string status) {
+    SetVisible(EnablePanel.Main);
+    TitleText.text = title;
+    MessageText.text = message;
+    StatusText.text = status;
   }
 
   void SetVisible(EnablePanel enable) {

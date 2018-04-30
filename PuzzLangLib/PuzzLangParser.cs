@@ -60,21 +60,21 @@ namespace PuzzLangLib {
       return null;
     }
 
-    string DefObject(Cursor cursor, string ident, string glyph, IList<string> justify, string height, 
+    string DefObject(Cursor cursor, string ident, string glyph, IList<string> justify, string scale, 
       IList<string> colours, string message, IList<string> gridlines) {
       var clist = colours.Select(c => _manager.ColourParser.ParseColour(c)).ToList();
       var jlist = justify.Select(d => _manager.ParseDirection(d));
       var jx = (jlist.Contains(Direction.Left) ? -1f : 0f) + (jlist.Contains(Direction.Right) ? 1f : 0f);
       var jy = (jlist.Contains(Direction.Down) ? -1f : 0f) + (jlist.Contains(Direction.Up) ? 1f : 0f);
       var jpivot = Pair.Create(jx, jy);
-      var nheight = (height == null) ? 1.0 : height.SafeDoubleParse();
-      if (height != null && (nheight == null || nheight <= 0))
-        ParseError(cursor, $"invalid height: {height}");
+      var nscale = (scale == null) ? 1.0 : scale.SafeDoubleParse();
+      if (scale != null && (nscale == null || nscale <= 0))
+        ParseError(cursor, $"invalid scale: {scale}");
       if (gridlines.Count == 0) {
-        _manager.AddObject(ident, jpivot, nheight.Value, 1, new int[] { clist.First() }, clist.Last(), message);
+        _manager.AddObject(ident, jpivot, (float)nscale.Value, 1, new int[] { clist.First() }, clist.Last(), message);
       } else {
         var grid = ParseGrid(cursor, gridlines, clist);
-        _manager.AddObject(ident, jpivot, nheight.Value, gridlines.Count, grid, clist.Last(), message);
+        _manager.AddObject(ident, jpivot, (float)nscale.Value, gridlines.Count, grid, clist.Last(), message);
       }
       if (glyph != null) _manager.AddObjectDef(glyph, new List<string> { ident }, LogicOperator.None);
       return null;
@@ -97,7 +97,7 @@ namespace PuzzLangLib {
       return _manager.ColourParser.IsColour(value);
     }
     bool IsObject(string value) {
-      return _manager.ParseSymbol(value).Kind == SymbolKind.Alias;
+      return _manager.ParseSymbol(value).Kind == SymbolKind.Real;
     }
     bool IsDefined(string value) {
       return _manager.ParseSymbol(value) != null;

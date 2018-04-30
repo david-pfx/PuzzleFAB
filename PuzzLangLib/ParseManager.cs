@@ -50,10 +50,13 @@ namespace PuzzLangLib {
 
     internal bool IsEllipsis { get { return Symbol == Ellipsis; } }
     internal bool HasObject { get { return Symbol.ObjectIds.Count > 0; } }
+    internal bool Matches(RuleAtom other) {
+      return other.Symbol == Symbol && other.IsNegated == IsNegated && other.IsEllipsis == IsEllipsis;
+    }
 
     // note: object name used here, not tostring()
     public override string ToString() {
-      return IsEllipsis ? "..." : Util.JoinNonEmpty(" ", IsNegated ? "no" : "", 
+      return IsEllipsis ? "..." : Util.JoinNonEmpty(" ", IsNegated ? "no" : "",
         Direction == Direction.None ? "" : Direction.ToString(),
         Symbol.Name, Command == RuleCommand.None ? "" : Command.ToString());
     }
@@ -68,6 +71,13 @@ namespace PuzzLangLib {
     internal RuleAtom Clone(Direction direction) {
       var rm = this.MemberwiseClone() as RuleAtom;
       rm.Direction = direction;
+      return rm;
+    }
+
+    // Clone an atom but change the symbol
+    internal RuleAtom Clone(ObjectSymbol symbol) {
+      var rm = this.MemberwiseClone() as RuleAtom;
+      rm.Symbol = symbol;
       return rm;
     }
   }
@@ -115,7 +125,8 @@ namespace PuzzLangLib {
 
     // true if groups reference at least some of the same objects
     internal bool Matches(ObjectSymbol other) {
-      return ObjectIds.Overlaps(other.ObjectIds);
+      return ObjectIds.SetEquals(other.ObjectIds);
+      //return ObjectIds.Overlaps(other.ObjectIds);
     }
 
     public override string ToString() {
@@ -136,6 +147,8 @@ namespace PuzzLangLib {
     internal SettingsParser SettingsParser { get; private set; }
     internal ColourParser ColourParser { get; private set; }
     internal PuzzLangParser PegParser { get; private set; }
+    // access to expanded rules for testing
+    internal IList<AtomicRule> AtomicRules { get { return _atomicrules; } }
 
     int _linenumber { get { return PegParser.LineNumber; } }
 
@@ -143,10 +156,11 @@ namespace PuzzLangLib {
     TextWriter _out;
     GameDef _gamedef;
     RuleBuilder _rulebuilder;
-    Dictionary<string, ObjectSymbol> _symbols = new Dictionary<string, ObjectSymbol>(StringComparer.CurrentCultureIgnoreCase);
+    Dictionary<string, ObjectSymbol> _symbols = new Dictionary<string, ObjectSymbol>(StringComparer.OrdinalIgnoreCase);
+    List<AtomicRule> _atomicrules = new List<AtomicRule>();
 
     static readonly Dictionary<string, Direction> _arrowlookup =
-      new Dictionary<string, Direction>(StringComparer.CurrentCultureIgnoreCase) {
+      new Dictionary<string, Direction>(StringComparer.OrdinalIgnoreCase) {
       {  ">", Direction.RightArrow_ },
       {  "<", Direction.LeftArrow_ },
       {  "^", Direction.UpArrow_ },
@@ -175,8 +189,12 @@ namespace PuzzLangLib {
       return gp;
     }
 
-    internal string SymbolName(int id) {
+    internal string GetSymbolName(int id) {
       return _gamedef.PuzzleObjects[id - 1].Name;  // TODO: move into GameDef?
+    }
+
+    internal ObjectSymbol GetSymbol(int id) {
+      return _symbols[GetSymbolName(id)];
     }
 
     internal Direction ParseDirection(string value) {
@@ -193,7 +211,7 @@ namespace PuzzLangLib {
     internal HashSet<int> ParseMask(string name) {
       var sym = ParseSymbol(name);
       Logger.Assert(sym != null, name);
-      if (!(sym.Kind == SymbolKind.Alias||sym.Kind == SymbolKind.Mask))
+      if (!(sym.Kind == SymbolKind.Real||sym.Kind == SymbolKind.Property))
         CompileError("object '{0}' may only use OR", name);
       return sym.ObjectIds;
     }
@@ -202,7 +220,7 @@ namespace PuzzLangLib {
     internal HashSet<int> ParsePile(string name) {
       var sym = ParseSymbol(name);
       Logger.Assert(sym != null, name);
-      if (!(sym.Kind == SymbolKind.Alias || sym.Kind == SymbolKind.Pile))
+      if (!(sym.Kind == SymbolKind.Real || sym.Kind == SymbolKind.Aggregate))
         CompileError("object '{0}' may only use AND", name);
       return sym.ObjectIds;
     }
@@ -224,25 +242,25 @@ namespace PuzzLangLib {
     }
 
     // Add a named sprite object to symbol table and object list
-    internal int AddObject(string name, Pair<float,float> pivot, double height, int width, IList<int> grid,
+    internal int AddObject(string name, Pair<float,float> pivot, float scale, int width, IList<int> grid,
       int textcolour, string text) {
       _symbols[name] = new ObjectSymbol {
         Name = name,
-        Kind = SymbolKind.Alias,
+        Kind = SymbolKind.Real,
         ObjectIds = new HashSet<int> { _gamedef.PuzzleObjects.Count + 1 },
       };
       _gamedef.PuzzleObjects.Add(new PuzzleObject {
         Name = name,
         Layer = 0,      // set later
         Pivot = pivot,
-        Height = height,
+        Scale = scale,
         Width = width,
         Sprite = grid,
         TextColour = textcolour,
         Text = text,
       });
       DebugLog("Sprite Object {0}: '{1}' {2}x{3} {4} {5} {6}",
-        _gamedef.PuzzleObjects.Count, name, width, grid.Count / width, height, pivot, text);
+        _gamedef.PuzzleObjects.Count, name, width, grid.Count / width, scale, pivot, text);
       Logger.WriteLine(4, "{0}", grid.Select(c => String.Format("{0:X}", c)).Join());
       return _gamedef.PuzzleObjects.Count;
     }
@@ -253,17 +271,19 @@ namespace PuzzLangLib {
       sym.Name = name;
 
       // if it's a collection of all objects then make a decision
-      if (sym.Kind == SymbolKind.Alias && sym.ObjectIds.Count > 1)
-        sym.Kind = (oper == LogicOperator.And) ? SymbolKind.Pile : SymbolKind.Mask;
+      if (sym.Kind == SymbolKind.Real && sym.ObjectIds.Count > 1)
+        sym.Kind = (oper == LogicOperator.And) ? SymbolKind.Aggregate : SymbolKind.Property;
       
       // these are bad, otherwise use whatever we have
-      if ((oper == LogicOperator.And && sym.Kind == SymbolKind.Mask)
-        || (oper == LogicOperator.Or && sym.Kind == SymbolKind.Pile)) {
+      if ((oper == LogicOperator.And && sym.Kind == SymbolKind.Property)
+        || (oper == LogicOperator.Or && sym.Kind == SymbolKind.Aggregate)) {
         CompileError("incompatible symbols: {0}", others.Join());
       }
       _symbols[name] = sym;
-      DebugLog("Define '{0}': {1} <{2}>",
-        name, sym.Kind, sym.ObjectIds.Select(o => _gamedef.GetName(o)).Join());
+      var decode = name.All(c => (int)c <= 255) ? ""
+        : " (" + name.Select(c => ((int)c).ToString("X")).Join() + ")";
+      DebugLog("Define '{0}'{1}: {2} <{3}>",
+        name, decode, sym.Kind, sym.ObjectIds.Select(o => _gamedef.ShowName(o)).Join());
     }
 
     //internal void AddTextStringDef(string name, ObjectSymbol textsym, string text) {
@@ -272,7 +292,7 @@ namespace PuzzLangLib {
     //}
 
     static readonly SymbolKind[] _symbolkindlookkup = new SymbolKind[] {
-      SymbolKind.Alias, SymbolKind.Mask, SymbolKind.Pile, SymbolKind.Mixed
+      SymbolKind.Real, SymbolKind.Property, SymbolKind.Aggregate, SymbolKind.Mixed
     };
 
     // collect names objects, check out compatibility
@@ -280,8 +300,8 @@ namespace PuzzLangLib {
     ObjectSymbol CollectObjects(IList<ObjectSymbol> syms) {
       var kinds = syms.Select(s => s.Kind).ToList();
       if (kinds.Contains(SymbolKind.Mixed)) throw Error.Assert("stored mixed");
-      var kindx = (kinds.Contains(SymbolKind.Mask) ? 1 : 0)
-        + (kinds.Contains(SymbolKind.Pile) ? 2 : 0);
+      var kindx = (kinds.Contains(SymbolKind.Property) ? 1 : 0)
+        + (kinds.Contains(SymbolKind.Aggregate) ? 2 : 0);
       var objects = new HashSet<int>(syms.SelectMany(s => s.ObjectIds));
       return new ObjectSymbol {
         Kind = _symbolkindlookkup[kindx],
@@ -349,8 +369,10 @@ namespace PuzzLangLib {
             arule.Prefixes.Contains(RulePrefix.Random), // at runtime choose rule from group
             arule.Prefixes.Contains(RulePrefix.Rigid),  // entire group is rigid
             _inloop ? _loopcounter : 0);
-      foreach (var crule in _rulebuilder.Build(arule, rulegroup.Id)) 
-        rulegroup.Rules.Add(crule);
+      foreach (var prule in _rulebuilder.PrepareRule(arule, rulegroup.Id)) {
+        _atomicrules.Add(prule);
+        rulegroup.Rules.Add(_rulebuilder.CompileRule(prule));
+      }
     }
 
     Pair<RuleCommand, string> ParseCommand(string command) {
@@ -463,8 +485,8 @@ namespace PuzzLangLib {
     }
 
     internal void CompileError(string fmt, params object[] args) {
-      _out.WriteLine("*** '{0}' at {1}: compile error: {2}", _sourcename, _linenumber, String.Format(fmt, args));
       ErrorCount++;
+      throw new DOLEException("*** '{0}' at {1}: compile error: {2}".Fmt(_sourcename, _linenumber, String.Format(fmt, args)));
     }
     internal void CompileWarn(string fmt, params object[] args) {
       _out.WriteLine("*** '{0}' at {1}: compile warning: {2}", _sourcename, _linenumber, String.Format(fmt, args));
