@@ -24,7 +24,7 @@ It is nearly feature complete with PuzzleScript, and has a few extensions.
 The Unity player is quite basic, compared to what Unity can achieve, but it can play games and it too has a few enhancements.
 The games are selected from the PuzzleScript demos, and show the range of what now works.
 
-The latest release adds support for flickscreen, zoomscreen and sound seeds, and fixes some bugs.
+The latest release adds support text objects and mouse. See 2048 and Picross games.
 
 # Licensing
 
