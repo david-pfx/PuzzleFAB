@@ -20,25 +20,35 @@ namespace PuzzLangLib {
   /// Action to take after processing rules
   /// </summary>
   internal enum StateResult {
-    None, Cancel, Restart, Undo, Finished, Againing,
-    Success,
+    None, Cancel, Restart, Undo, Finished, Againing, Success, Reset,
   }
 
   /// <summary>
-  /// Current state of game after zero or more inputs
+  /// Current state of game after zero or more inputs.
+  /// An input successfully applied to a game state results in a new game state.
+  /// The game state creates a RuleState to track the application of rules to an input.
   /// </summary>
   class GameState {
+    public GameState Parent { get; private set; }
     // status of this game state
     internal StateResult Result { get { return _result; } }
     internal Level Level { get { return _level; } }
+    internal int MoveNumber { get { return _moveno; } }
     internal bool IsAgaining { get { return _result == StateResult.Againing; } }
     internal bool IsFinished { get { return _result == StateResult.Finished; } }
+    internal bool HasChanged { get { return _levelstate.ChangesCount > 0; } }
     internal int AgainCount { get; set; }
-    internal int MoveNumber { get { return _moveno; } }
-    internal IEnumerable<string> Sounds { get { return _rulestate.Sounds; } }
-    internal string Message { get { return _rulestate.Message; } }
     internal IList<int> PlayerIndexes { get { return _playerindexes; } }
     internal int ScreenIndex { get; private set; }
+    internal Dictionary<int, PuzzleObject> PuzzleObjects { get; private set; }
+    internal ScriptState ScriptState { get; private set; }
+
+    // list of sounds triggered by rules
+    internal List<string> Sounds = new List<string>();
+    // messages triggered by rules
+    internal List<string> Messages { get; private set; } = new List<string>();
+    // status line display
+    internal string Status { get; private set; }
 
     internal int LostRuleCounter { get; private set; }
     internal int EarlyRuleCounter { get; private set; }
@@ -47,14 +57,18 @@ namespace PuzzLangLib {
     internal int ActionCounter { get; private set; }
     internal int CommandCounter { get; private set; }
 
-    GameDef _gamedef { get { return _model._gamedef; } }
+    GameDef _gamedef { get { return _model.GameDef; } }
+    Random _rng;
 
-    static readonly Dictionary<RuleCommand, StateResult> _commandresultlookup = new Dictionary<RuleCommand, StateResult>() {
-      { RuleCommand.Cancel, StateResult.Cancel    },
-      { RuleCommand.Win,    StateResult.Finished  },
-      { RuleCommand.Restart,StateResult.Restart   },
-      { RuleCommand.Undo,   StateResult.Undo      },
-      { RuleCommand.Again,  StateResult.Againing  },
+
+    static readonly Dictionary<CommandName, StateResult> _commandresultlookup = new Dictionary<CommandName, StateResult>() {
+      { CommandName.Cancel, StateResult.Cancel    },
+      { CommandName.Win,    StateResult.Finished  },
+      { CommandName.Restart,StateResult.Restart   },
+      { CommandName.Reset,  StateResult.Reset     },
+      { CommandName.Undo,   StateResult.Undo      },
+      { CommandName.Again,  StateResult.Againing  },
+      { CommandName.Level,  StateResult.Reset     },
     };
 
     // columns used by lookup
@@ -80,26 +94,34 @@ namespace PuzzLangLib {
     HashSet<RuleGroup> _disabledgrouplookup = new HashSet<RuleGroup>();
     RuleState _rulestate;         // state as rules are evaluated
     List<int> _playerindexes;
+    LevelState _levelstate;
 
     public override string ToString() {
       return $"Game<{_moveno},{_input},{_result},a={AgainCount}>";
     }
 
-    internal static GameState Create(GameModel model, Level level, int moveno) {
+    internal static GameState Create(GameModel model, Level level, GameState parent) {
+      var moveno = (parent == null) ? 1 : parent._moveno + 1;
       var gs = new GameState {
         _model = model,             // static data
+        Parent = parent,
         _level = level.Clone(),     // initial state of level -- will be updated
         _moveno = moveno,           // just a counter
+        PuzzleObjects = (parent == null) ? new Dictionary<int, PuzzleObject>() 
+                                         : new Dictionary<int, PuzzleObject>(parent.PuzzleObjects),
+        _rng = new Random(model.GameDef.RngSeed + moveno),
+        Status = (parent == null) ? null : parent.Status,
       };
       gs._playerindexes = gs.FindPlayers();
       gs.ScreenIndex = gs.CalcScreenIndex();
+      gs.ScriptState = model.GameDef.Scripts.GetScriptState(gs);
       return gs;
     }
 
     // Create new game state and apply input to it
     internal GameState NextState(Direction input, int? intparam) {
       Logger.WriteLine(3, "NextState {0} {1}", input, intparam);
-      var nextstate = GameState.Create(_model, _level, _moveno + 1);
+      var nextstate = GameState.Create(_model, _level, this);
       return nextstate.ApplyAll(input, intparam);
     }
 
@@ -107,28 +129,70 @@ namespace PuzzLangLib {
     GameState ApplyAll(Direction input, int? intparam) {
       var now1 = DateTime.Now;
       _input = input;
-      if (intparam != null) ApplyClick(input, intparam.Value);
+      if (intparam != null)
+        ApplyClick(input, intparam.Value);
       else ApplyInput(input);
       ApplyRules();
       _playerindexes = FindPlayers();
       ScreenIndex = CalcScreenIndex();
 
-      // check commands in order of priority
+      // process commands in order as added, break if one defines a result
       _result = StateResult.Success;
-      foreach (var command in _commandresultlookup.Keys) {
-        if (_rulestate.Commands.Contains(command)) {
-          _result = _commandresultlookup[command];
+      foreach (var cmd in _rulestate.CommandList) {
+        switch (cmd.commandId) {
+        case CommandName.None:    // happens if command is function
           break;
+        case CommandName.Checkpoint:
+          _model.SetCheckpoint(_levelstate.CloneLevel("checkpoint"));
+          _rulestate.CheckTrigger(SoundTrigger.Checkpoint);
+          break;
+        case CommandName.Message:
+          _model.VerboseLog("Message {0}", cmd.text);
+          Messages.Add(cmd.text);
+          break;
+        case CommandName.Status:
+          _model.VerboseLog("Status {0}", cmd.text);
+          Status = cmd.text;
+          break;
+        case CommandName.Sound_:
+          if (!Sounds.Contains(cmd.text)) {
+            _model.VerboseLog("Sound {0}", cmd.text);
+            Sounds.Add(cmd.text);
+          }
+          break;
+        case CommandName.Text_:
+          SetObjectText(cmd.objectId, cmd.text);
+          break;
+        default:
+          if (_commandresultlookup.ContainsKey(cmd.commandId)) {
+            if (cmd.commandId == CommandName.Again && !HasChanged)
+              _model.VerboseLog("Again cancelled, no effect.");
+            else {
+              if (cmd.commandId == CommandName.Level)
+                _model.SetLevelIndex(cmd.text.SafeIntParse() ?? 0);
+              _result = _commandresultlookup[cmd.commandId];
+            }
+            break;
+          } else throw Error.Assert($"cmd {cmd}");
         }
+        if (_result != StateResult.Success) break;
+
       }
-      // handle checkpoint, gets discarded by any other command
-      if (_rulestate.Commands.Contains(RuleCommand.Checkpoint)) {
-        _model.SetCheckpoint(_rulestate.CheckPoint);
-        _rulestate.CheckTrigger(SoundTrigger.Checkpoint);
-      }
+
       var now2 = DateTime.Now;
       Logger.WriteLine(4, "[AA {0}]", this);
       return this;
+    }
+
+    // Set object text, cloning object if needed
+    void SetObjectText(int objid, string text) {
+      if (!PuzzleObjects.ContainsKey(objid))
+        PuzzleObjects[objid] = _gamedef.GetObject(objid).Clone();
+      var pobj = PuzzleObjects[objid];
+      if (pobj.Text != text) { 
+        _model.VerboseLog("Object text {0}={1}", objid, text);
+        pobj.Text = text;
+      }
     }
 
     // apply input to any clickables found at this location
@@ -138,9 +202,8 @@ namespace PuzzLangLib {
       Logger.WriteLine(3, "ApplyClick {0} {1}", input, cellindex);
       foreach (var obj in _level.GetObjects(cellindex)) { 
         if (_gamedef.Clickables.Contains(obj)) {
-          var locator = Locator.Create(cellindex, _gamedef.GetLayer(obj));
-          _movers.Add(Mover.Create(obj, locator, _input));
-          Logger.WriteLine(2, "Mover click {0} to {1} at {2}", _input, _gamedef.ShowName(obj), locator);
+          _movers.Add(Mover.Create(obj, cellindex, _gamedef.GetLayer(obj), _input));
+          Logger.WriteLine(2, "Mover click {0} to {1} at {2}", _input, _gamedef.ShowName(obj), cellindex);
         }
       }
     }
@@ -151,17 +214,16 @@ namespace PuzzLangLib {
       //if (_gamedef.Players == null) return;
       Logger.WriteLine(3, "ApplyInput {0}", input);
       foreach (var player in _gamedef.Players)
-        foreach (var locator in FindObject(player)) {
-          _movers.Add(Mover.Create(player, locator, _input));
-          Logger.WriteLine(2, "Mover input {0} to {1} at {2}", _input, _gamedef.ShowName(player), locator);
+        foreach (var cellindex in FindObject(player)) {
+          _movers.Add(Mover.Create(player, cellindex, _gamedef.GetLayer(player), _input));
+          Logger.WriteLine(2, "Mover input {0} to {1} at {2}", _input, _gamedef.ShowName(player), cellindex);
         }
     }
 
-    // find the location of each player as an ordered list
+    // find the location of each player for flick/zoom/require movement
     List<int> FindPlayers() {
       return _gamedef.Players
-        .SelectMany(p => FindObject(p)
-        .Select(l => l.Index))
+        .SelectMany(p => FindObject(p))
         .ToList();
     }
 
@@ -169,7 +231,7 @@ namespace PuzzLangLib {
     int CalcScreenIndex() {
       var flick = _gamedef.GetSetting(OptionSetting.flickscreen, (Pair<int, int>)null);
       var zoom = _gamedef.GetSetting(OptionSetting.zoomscreen, (Pair<int, int>)null);
-      if ((flick == null && zoom == null) || PlayerIndexes.Count == 0) return 0;
+      if ((flick == null && zoom == null) || !PlayerIndexes.Any()) return 0;
       var pindex = PlayerIndexes[0];
       var width = _level.Width;
       var height = _level.Height;
@@ -198,10 +260,11 @@ namespace PuzzLangLib {
       while (true) {
         _movers = new List<Mover>(originalmovers);
         _level = originallevel.Clone();
-        _rulestate = RuleState.Create(_model, _level, _movers);
+        _levelstate = LevelState.Create(_gamedef, _level, _movers);
+        _rulestate = RuleState.Create(_model, _levelstate, _gamedef, _model.Evaluator, _rng);
+        _gamedef.Scripts.SetRuleState(_rulestate);
 
         ApplyRuleGroups(_gamedef.EarlyRules);
-        if (_rulestate.Exit) return;
 
         // make the moves
         var disablecount = _disabledgrouplookup.Count;
@@ -215,23 +278,18 @@ namespace PuzzLangLib {
       if (_gamedef.LateRules.Count > 0) {
         _model.VerboseLog("Try {0} late rule(s)", _gamedef.LateRules.Count);
         ApplyRuleGroups(_gamedef.LateRules);
-        if (_rulestate.Exit) return;
       }
       TotalRuleCounter += _rulestate.PatternCounter;
       ActionCounter += _rulestate.ActionCounter;
       CommandCounter += _rulestate.CommandCounter;
 
       // figure out command to return
-      var haschanged = _level.ChangesCount > 0;
       if (TestWinConditions()) {
         _model.VerboseLog("Win conditions satisfied.");
-        _rulestate.Commands.Add(RuleCommand.Win);
-      } else if (!haschanged && _rulestate.Commands.Contains(RuleCommand.Again)) {
-        _model.VerboseLog("Again cancelled, no effect.");
-        _rulestate.Commands.Remove(RuleCommand.Again);
+        _rulestate.AddCommand(CommandName.Win);
       }
 
-      Logger.WriteLine(3, "[ARR chg={0} rs={1}]", haschanged, _rulestate);
+      Logger.WriteLine(3, "[ARR chg={0} rs={1}]", HasChanged, _rulestate);
     }
 
     // apply a group of rules, single or nested in startloop/endloop
@@ -286,8 +344,10 @@ namespace PuzzLangLib {
       if (group.IsRandom) {
         var matches = _rulestate.FindMatches(group);
         if (matches.Count > 0) {
-          var n = _model.Rng.Next(matches.Count);
-          _rulestate.DoActions(group, new List<RuleMatch> { matches[n] });
+          var n = _rng.Next(matches.Count);
+          var randmatch = new List<RuleMatch> { matches[n] };
+          _rulestate.DoActions(group, randmatch);
+          _rulestate.DoCommands(group, randmatch);
           groupchange = true;
         }
 
@@ -299,7 +359,9 @@ namespace PuzzLangLib {
           var matches = _rulestate.FindMatches(group);
           var rulechange = _rulestate.DoActions(group, matches);
           groupchange |= rulechange;
-          if (!rulechange) break;
+          if (retry == 0)       // just the first time
+            _rulestate.DoCommands(group, matches);  
+          if (!rulechange || group.IsFinal) break;
         }
       }
       Logger.WriteLine(4, "[ARG {0}]", groupchange);
@@ -309,51 +371,52 @@ namespace PuzzLangLib {
     // apply the movers list to the level
     // check each failed move, abort if not allowed
     void ApplyMoves() {
-      Logger.WriteLine(3, "ApplyMoves movers={0} changes={1}", _movers.Count, _level.ChangesCount);
+      Logger.WriteLine(3, "ApplyMoves movers={0} changes={1}", _movers.Count, _levelstate.ChangesCount);
 
       // 1.Remove illegals and duplicates (later in list)
+      var destinations = new HashSet<Locator>();
       foreach (var mover in _movers.ToArray()) {
         var newloc = Destination(mover);
         if (mover.Direction == Direction.None || newloc.IsNull) {
           if (NoFailRigid(mover)) return;
           _movers.Remove(mover);
-        } else {
-          var dups = _movers.Where(m => Destination(m).Equals(newloc));
-          foreach (var dup in dups.Skip(1).ToArray()) {  // avoid modifying collection
+        } else if (destinations.Contains(newloc)) { 
             if (NoFailRigid(mover)) return;
-            _model.VerboseLog("Blocked duplicate move {0} to {1}", _gamedef.ShowName(mover.ObjectId), mover.Locator.Index);
-            _movers.Remove(dup);
-          }
+            _model.VerboseLog("Blocked duplicate move {0} to {1}", _gamedef.ShowName(mover.ObjectId), mover.CellIndex);
+            _movers.Remove(mover);
+        } else {
+          destinations.Add(newloc);
         }
-        if (_movers.Where(m => m.Locator.Equals(mover.Locator)).Count() > 1) throw Error.Assert("dup mover obj");
       }
 
       // 2. Remove all movers from level
       foreach (var mover in _movers)
-        _level[mover.Locator] = 0;
+        _levelstate.SetCell(mover.CellIndex, mover.Layer, 0);
 
       // 3. Remove blocked movers from list, restore to level
       // 4. Repeat step 3 until none
       while (true) {
-        var blocked = _movers.Where(m => _level[Destination(m)] != 0).ToArray();
-        if (blocked.Count() == 0) break;
-        foreach (var mover in blocked) {
-          _level[mover.Locator] = mover.ObjectId;
+        var blocked = _movers.Where(m => _level[Destination(m)] != 0);
+        if (!blocked.Any()) break;
+        foreach (var mover in blocked.ToArray()) {
+          _levelstate.SetCell(mover.CellIndex, mover.Layer, mover.ObjectId);
           if (NoFailRigid(mover)) return;
-          Logger.WriteLine(3, "Blocked  move {0} to {1}", _gamedef.ShowName(mover.ObjectId), mover.Locator.Index);
+          Logger.WriteLine(3, "Blocked  move {0} to {1}", _gamedef.ShowName(mover.ObjectId), mover.CellIndex);
           _movers.Remove(mover);
         }
       }
       // 4.Insert movers into level at new location, count it
-      if (_movers.Count > 0)
+      if (_movers.Any())
         _model.VerboseLog("Make moves: {0}", _movers.Select(m=>_gamedef.ShowName(m.ObjectId)).Join());
       MoveCounter += _movers.Count;
       foreach (var mover in _movers) {
-        _level[Destination(mover)] = mover.ObjectId;
-        _rulestate.CheckTrigger(mover.Direction == Direction.Action ? SoundTrigger.Action : SoundTrigger.Move, 
+        var loc = Destination(mover);
+        _levelstate.SetCell(loc.Index, loc.Layer, mover.ObjectId);
+        _rulestate.CheckTrigger(mover.Direction == Direction.Action ? SoundTrigger.Action 
+          : mover.Direction == Direction.Reaction ? SoundTrigger.Reaction : SoundTrigger.Move, 
           mover.ObjectId, mover.Direction);
       }
-      Logger.WriteLine(4, "[AM {0},{1}]", _movers.Count, _level.ChangesCount);
+      Logger.WriteLine(4, "[AM {0},{1}]", _movers.Count, _levelstate.ChangesCount);
     }
 
     // if rigid add to disabled list and return true
@@ -374,13 +437,13 @@ namespace PuzzLangLib {
 
     // return true if this win condition is satisfied
     bool TestWinCondition(WinCondition winco) {
-      var lookupcol = Array.IndexOf(_wincocol, winco.Action) + (winco.Others != null ? 3 : 0);
+      var lookupcol = Array.IndexOf(_wincocol, winco.testKind) + (winco.otherObjectIds != null ? 3 : 0);
       bool? result = null;
       for (int index = 0; index < _level.Length; index++) {
-        var objfound = winco.ObjectIds.Where(o => ObjectFound(o, index)).Count() > 0;
-        if (winco.Others == null) result = _wincolookup[!objfound ? 0 : 1, lookupcol];
+        var objfound = winco.objectIds.Where(o => ObjectFound(o, index)).Count() > 0;
+        if (winco.otherObjectIds == null) result = _wincolookup[!objfound ? 0 : 1, lookupcol];
         else {
-          var targfound = winco.Others.Where(o => ObjectFound(o, index)).Count() > 0;
+          var targfound = winco.otherObjectIds.Where(o => ObjectFound(o, index)).Count() > 0;
           result = _wincolookup[!objfound ? 0 : !targfound ? 1 : 2, lookupcol];
         }
         if (result != null) return result.Value;
@@ -389,17 +452,16 @@ namespace PuzzLangLib {
     }
 
     Locator Destination(Mover mover) {
-      var newindex = _level.Step(mover.Locator.Index, mover.Direction) ?? -1;
+      var newindex = _level.Step(mover.CellIndex, mover.Direction) ?? -1;
       return (newindex == -1) ? Locator.Null
-        : Locator.Create(newindex, mover.Locator.Layer);
+        : Locator.Create(newindex, mover.Layer);
     }
 
     // Find the locations of an object
-    List<Locator> FindObject(int obj) {
+    List<int> FindObject(int obj) {
       var layer = _gamedef.GetLayer(obj);
       return Enumerable.Range(0, _level.Length)
-        .Where(x => _level[x, layer] == obj)
-        .Select(x => Locator.Create(x, layer)).ToList();
+        .Where(x => _level[x, layer] == obj).ToList();
     }
 
     bool ObjectFound(int objct, int location) {

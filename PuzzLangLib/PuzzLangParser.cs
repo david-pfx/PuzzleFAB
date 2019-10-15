@@ -49,11 +49,6 @@ namespace PuzzLangLib {
       return null;
     }
 
-    bool IsSetting(string value) {
-      if (value == null || value.EndsWith("_")) return false;
-      return value.SafeEnumParse<OptionSetting>() != null;
-    }
-
     string DefSetting(Cursor cursor, string name, string value) {
       if (!_manager.SettingsParser.Parse(name, value)) ParseError(cursor, $"invalid setting '{name}' value '{value}'");
       Logger.WriteLine(2, $"Setting {name}='{value}'");
@@ -93,6 +88,12 @@ namespace PuzzLangLib {
     }
 
     //--- predicates for parsing
+
+    bool IsSetting(string value) {
+      if (value == null || value.EndsWith("_")) return false;
+      return value.SafeEnumParse<OptionSetting>() != null;
+    }
+
     bool IsColour(string value) {
       return _manager.ColourParser.IsColour(value);
     }
@@ -102,6 +103,9 @@ namespace PuzzLangLib {
     bool IsDefined(string value) {
       return _manager.ParseSymbol(value) != null;
     }
+    bool IsVariable(string value) {
+      return _manager.ParseVariable(value) != null;
+    }
     bool IsWinAction(string value) {
       return (value.SafeEnumParse<MatchOperator>() ?? MatchOperator.None) != MatchOperator.None;
     }
@@ -109,7 +113,7 @@ namespace PuzzLangLib {
       return _manager.ParseTriggerEvent(value) != SoundTrigger.None;
     }
     bool IsRuleCommand(string value) {
-      return _manager.ParseRuleCommand(value) != RuleCommand.None;
+      return _manager.ParseCommandName(value) != CommandName.None;
     }
     bool IsRulePrefix(string value) {
       return _manager.ParseRulePrefix(value) != RulePrefix.None;
@@ -153,9 +157,8 @@ namespace PuzzLangLib {
       return null;
     }
 
-    // define a rule with prefixes and subrules
-    string DefRule(Cursor state, IList<string> prefixes,
-      IList<SubRule> pattern, IList<SubRule> action, IList<string> commands) {
+    // define a rule composes of patterns, actions and commands
+    string DefRule(Cursor state, IList<SubRule> pattern, IList<SubRule> action, IList<CommandCall> commands) {
 
       if (action.Count == 0) {
         if (action == null) ParseError(state, "rule missing action or command");
@@ -166,37 +169,57 @@ namespace PuzzLangLib {
       }
 
       // rule directions parsed on first subrule; others left as future enhancement
-      if (pattern.Skip(1).Any(p => p.Directions.Count > 0) || action.Any(p => p.Directions.Count > 0))
-        _manager.CompileWarn("subrule directions ignored");
+      if (pattern.Skip(1).Any(p => p.Prefixes.Any() || p.Directions.Any()) || action.Any(p => p.Prefixes.Any() || p.Directions.Any()))
+        _manager.CompileWarn("subrule prefixes or directions ignored");
 
-      var prefs = prefixes.Select(c => _manager.ParseRulePrefix(c)).ToList();
-      _manager.AddRule(LineNumber, prefs, pattern.First().Directions, pattern, action, commands);
+      // just use the prefix and directions from first pattern subrule
+      _manager.AddRule(LineNumber, pattern.First().Prefixes, pattern.First().Directions, pattern, action, commands);
       return null;
     }
 
-    // define a rule sequence (pattern or action) as a list of cells
-    SubRule DefSubRule(IList<string> directions, IList<IList<RuleAtom>> subparts) {
+    // define a rule sequence (pattern or action) as a prefix and a list of cells
+    // prefix includes both rule modifiers and directions -- separate them out
+    SubRule DefSubRule(IList<string> idents, IList<IList<RuleAtom>> cells) {
+      var prefixes = idents
+        .Where(i=>IsRulePrefix(i))
+        .Select(p=>_manager.ParseRulePrefix(p));
+      var directions = idents
+        .Where(i=>IsRuleDirection(i))
+        .Select(p=>_manager.ParseDirection(p));
       return new SubRule {
-        Directions = directions.Select(c => _manager.ParseDirection(c)).ToList(),
-        Cells = subparts
+        Prefixes = prefixes.ToList(),
+        Directions = directions.ToList(),
+        Cells = cells,
       };
     }
-    
+
     // define a cell as a special value
-    IList<RuleAtom> DefRuleCell(string arg) {
+    IList<RuleAtom> DefRuleAtomList(string arg) {
       return new List<RuleAtom> {
-        _manager.CreateRuleCell(null, null, arg, null)
+        _manager.CreateRuleCell(null, null, null, arg, null)
       };
     }
     
     // define a cell as a list of matches
-    RuleAtom DefRuleCell(string noflag, string direction, string ident, string command) {
-      return _manager.CreateRuleCell(noflag, direction, ident, command);
+    RuleAtom DefRuleAtom(string noflag, string direction, string prefix, string ident, ScriptFunctionCall call) {
+      return _manager.CreateRuleCell(noflag, direction, prefix, ident, call);
     }
 
-    string DefWinCondition(string condition, string ident, string other) {
-      _manager.AddWin(condition, ident, other);
-      Logger.WriteLine(2, $">Win {condition},{ident},{other}");
+    // define a command call
+    CommandCall DefCommandCall(Cursor cursor, string ident, ScriptFunctionCall call, string argument) {
+      var cc = _manager.CreateCommandCall(ident, call, argument);
+      if (cc == null)
+        ParseError(cursor, "bad command: {0}", ident);
+      return cc;
+    }
+
+    CommandCall DefCommandScript(ScriptFunctionCall call) {
+      return _manager.CreateCommandCall(call);
+    }
+
+    string DefWinCondition(string condition, string ident, string other, ScriptFunctionCall call) {
+      _manager.AddWin(condition, ident, other, call);
+      Logger.WriteLine(2, $">Win {condition},{ident},{other},{call}");
       return null;
     }
 
@@ -215,12 +238,23 @@ namespace PuzzLangLib {
       return null;
     }
 
+    // parse and define a message
+    string DefScript(Cursor cursor, IList<string> lines) {
+      _manager.AddScript(lines);
+      return null;
+    }
+
+    // create script call, but leave parsing until later
+    ScriptFunctionCall DefScriptCall(string ident, IList<string> args) {
+      return _manager.GameDef.Scripts.CreateFunctionCall(_manager, ident, args);
+    }
+
     void ParseError(Cursor cursor, string format, params string[] args) {
       throw ExceptionHelper(cursor, state => String.Format(format, args));
     }
 
     T Single<T>(IList<T> list) where T : class {
-      return list.Count > 0 ? list[0] : null;
+      return list.FirstOrDefault();
     }
 
     List<T> ListOf<T>(params T[] args) {

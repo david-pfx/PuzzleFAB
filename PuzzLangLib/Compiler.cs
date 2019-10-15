@@ -34,7 +34,6 @@ namespace PuzzLangLib {
     public IList<string> RuleExpansions { get { return _parser.AtomicRules.Select(r=>r.ToString()).ToList(); } }
 
     internal ParseManager _parser;
-    bool _parseerror = false;
 
     public static Compiler Compile(string sourcename, TextReader reader, TextWriter output, 
       IList<Pair<string,string>> settings = null) {
@@ -49,8 +48,8 @@ namespace PuzzLangLib {
       return ret;
     }
 
+    // encode level per PuzzleScript format
     public string EncodeLevel(Level level) {
-      //var level = _engine.LastLevel;
       var sw = new StringWriter();
       var seenlookup = new Dictionary<string, int>();
       var seen = 0;
@@ -77,14 +76,27 @@ namespace PuzzLangLib {
       return sw.ToString();
     }
 
+    // decode level back to compiler input (but unknown combos will be '?')
+    public string DecodeLevel(Level level) {
+      var sw = new StringWriter();
+      var lookup = _parser.Symbols
+        .Where(s => s.Name.Length == 1)
+        .ToDictionary(k => k.ObjectIds.OrderBy(i => i).Join(), v => v.Name);
+      for (int x = 0; x < level.Length; x++) {
+        if (x > 0 && x % level.Width == 0) sw.Write(" ;");
+        var objs = level.GetObjects(x).OrderBy(i => i);
+        var objsexbg = (objs.Count() == 1) ? objs : objs.Skip(1);
+        sw.Write(lookup.SafeLookup(objsexbg.Join()) ?? "?");
+      }
+      return sw.ToString();
+    }
+
     void Compile(TextReader reader) {
       _parser = ParseManager.Create(SourceName, Out, Settings);
       var program = reader.ReadToEnd() + "\r\n";  // just too hard to parse missing EOL
       try {
-        var result = _parser.PegParser.Parse(program);
-        var fmt = _parser.ErrorCount > 0 ? "Compiled '{0}' with errors, count: {1} warnings: {2}."
-          : _parser.WarningCount > 0 ? "Compiled '{0}' with warnings, count: {2}." : "Compiled '{0}' with no errors.";
-        Out.WriteLine(fmt, SourceName, _parser.ErrorCount, _parser.WarningCount);
+        _parser.PegParser.Parse(program);
+        _parser.CheckData();
       } catch (FormatException e) {
         if (e.Data.Contains("cursor")) {
           var state = e.Data["cursor"] as Cursor;
@@ -95,19 +107,20 @@ namespace PuzzLangLib {
           Message = "{0}\n*** '{1}' at {2},{3}: parse error: {4}".Fmt(source.Shorten(78),
             SourceName, state.Line, state.Column, e.Message);
           Out.WriteLine(Message);
-          _parseerror = true;
+          ++_parser.ErrorCount;
         } else {
           Out.WriteLine($"*** '{SourceName}': unexpected exception: {e.ToString()}");
-          _parseerror = true;
+          ++_parser.ErrorCount;
         }
       } catch (DOLEException e) {
         Message = e.Message;
         Out.WriteLine(Message);
-        _parseerror = true;
-      }
-      if (_parseerror)
         ++_parser.ErrorCount;
-      else _parser.CheckData();
+      }
+      var fmt = _parser.ErrorCount > 0 ? "Compiled '{0}' with errors, count: {1} warnings: {2}."
+        : _parser.WarningCount > 0 ? "Compiled '{0}' with warnings, count: {2}." 
+        : "Compiled '{0}' with no errors, {3} rules.";
+      Out.WriteLine(fmt, SourceName, _parser.ErrorCount, _parser.WarningCount, _parser.RuleCount);
     }
   }
 

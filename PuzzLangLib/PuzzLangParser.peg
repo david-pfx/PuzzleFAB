@@ -26,138 +26,156 @@ StartRule
 
 Section 
     = EOLC* (ObjectSection / LegendSection / SoundSection / CollisionLayerSection / RuleSection 
-    / WinConditionSection / LevelSection 
+    / WinConditionSection / ScriptSection / LevelSection 
     / !EOF #error{ "syntax error" })
 
 //------------------------------------------------------------------------------
-PreludeSection = ( Setting / EOLC )*
-Setting 
-    = v:SettingName w:AnyText EOLC { DefSetting(state,v,w) }
-    / v:SettingName EOLC { DefSetting(state,v,"true") }
-    / "no"i v:SettingName EOLC { DefSetting(state,v,"false") }
+PreludeSection = ( !section_start ( EOLC / setting_line ) )*
+setting_line
+    = v:setting_name w:any_text EOLC { DefSetting(state,v,w) }
+    / v:setting_name EOLC { DefSetting(state,v,"true") }
+    / "no"i v:setting_name EOLC { DefSetting(state,v,"false") }
+    / WSC v:ident #error{ $"option setting expected: '{v}'" } 
 
 //------------------------------------------------------------------------------
 ObjectSection 
-    = OBJECTS ( EOLC* !SectionStart ObjectLine )*
-ObjectLine 
-    = WSC v:CanDefine w:Glyph? x:Justify* y:FloatNumber? EOLX
+    = OBJECTS ( EOLC* !section_start object_line )*
+object_line 
+    = WSC v:CanDefine w:glyph? x:justify_ident* y:float_number? EOLX
       z:ColourExp+ EOLX EOLC*       // blank line(s) permitted before sprite lines
-      a:MessageLine? b:SpriteLine* { DefObject(state,v,Single(w),x,Single(y),z,Single(a),b) }
-MessageLine
-    = MESSAGE v:AnyText EOLW { v }
+      a:text_line? b:sprite_line* { DefObject(state,v,Single(w),x,Single(y),z,Single(a),b) }
+text_line
+    = ( TEXT / MESSAGE ) v:any_text EOLW { v }
 
-//ObjectLine 
-//    = WSC v:CanDefine w:Glyph? x:Justify* y:FloatNumber? EOLX
-//      z:ColourExp+ EOLX EOLC*       // blank line(s) permitted before sprite lines
-//      zz:ContentLines { DefObject(state,v,Single(w),x,Single(y),z,zz) }
-//ContentLines<IList<string>>
-//    = MESSAGE v:AnyText EOLW { new List<string> { "?" + v } }
-//    / v:SpriteLine* { v }
-
-SpriteLine 
+sprite_line 
     = v:SpriteChar<2,> EOLC { String.Concat(v.ToArray()) }       // backtrack here to next object
 ColourExp 
-    = WSC v:ColourValue &{ IsColour(v) } { v }
-    / WSC v:ColourValue #error{ $"colour expected: '{v}'" }
+    = WSC v:colour_value &{ IsColour(v) } { v }
+    / WSC v:colour_value #error{ $"colour expected: '{v}'" }
 
 //------------------------------------------------------------------------------
 LegendSection 
-    = LEGEND ( EOLC* !SectionStart LegendLine )*
+    = LEGEND ( EOLC* !section_start LegendLine )*
 LegendLine 
-    = WSC v:IdOrGlyph WSC EQ w:DefinedExp<1,,WSO OR> EOLC { DefLegend(v,w,"or") }
-    / WSC v:IdOrGlyph WSC EQ w:DefinedExp<1,,WSO AND> EOLX { DefLegend(v,w,"and") }
+    = WSC v:id_or_glyph WSC EQ w:DefinedExp<1,,WSO OR> EOLC { DefLegend(v,w,"or") }
+    / WSC v:id_or_glyph WSC EQ w:DefinedExp<1,,WSO AND> EOLX { DefLegend(v,w,"and") }
 
 //------------------------------------------------------------------------------
-SoundSection = SOUNDS ( EOLC* !SectionStart SoundLine )*
+SoundSection = SOUNDS ( EOLC* !section_start SoundLine )*
 SoundLine
     = WSC v:Defined? 
-        w:(SoundTriggerIdent / e:Token #error{ $"sound word expected: '{e}'" }) 
-        x:RuleDirectionIdent*
-        y:("" [0-9]+ / e:Token #error{ $"seed expected: '${e}'" })
+        w:(sound_trigger_ident / e:token #error{ $"sound word expected: '{e}'" }) 
+        x:rule_direction_ident*
+        y:("" [0-9]+ / e:token #error{ $"seed expected: '${e}'" })
         EOLX { DefSound(Single(v),w,x,y) }
 
 //------------------------------------------------------------------------------
-CollisionLayerSection = COLLISIONLAYERS ( EOLC* !SectionStart CollisionLine )*
+CollisionLayerSection = COLLISIONLAYERS ( EOLC* !section_start CollisionLine )*
 CollisionLine 
     = v:( (w:DefinedExp CMA?) { w } )+ EOLX { DefCollision(state,v) }
 
 //------------------------------------------------------------------------------
-RuleSection = RULES ( EOLC* !SectionStart RuleLine )*
-RuleLine 
+RuleSection = RULES ( EOLC* !section_start rule_line )*
+rule_line 
     = WSC v:RULELOOP EOLX { Loop(state,v) }
-    / WSC v:RulePrefixIdent* w:RuleSeq* RAexp x:RuleSeq* y:RuleEnd* EOLX { DefRule(state,v,w,x,y) }
-    / WSC v:Ident #error{ $"expected move prefix or direction: {v}" }
-RuleSeq<SubRule>
-    = WSC v:RuleDirectionIdent* LB w:RuleCell<0,,WSC VB> RBexp { DefSubRule(v,w) }
-    / WSC v:RuleDirectionIdent #error{ $"expected direction or left bracket: {v}" }
-RuleCell<IList<RuleAtom>>
-    = ELLIP             { DefRuleCell("...") }  //  must be first
-    / WSC v:RuleMatch+  { v }
-    / WSC &( VB / RB )  { DefRuleCell(null) }
+    / WSC v:rule_subrule* RAexp w:rule_subrule* x:rule_command* EOLX { DefRule(state,v,w,x) }
+rule_subrule<SubRule>
+    = WSC v:rule_prefix_ident* LB w:rule_atom_list<0,,WSC VB> RBexp { DefSubRule(v,w) }
+    / WSC v:rule_prefix_ident #error{ "left bracket expected" }
+rule_atom_list<IList<RuleAtom>>
+    = ELLIP             { DefRuleAtomList("...") }  //  must be first
+    / WSC v:rule_atom+  { v }
+    / WSC &( VB / RB )  { DefRuleAtomList(null) }
     / #error{ $"object or command expected" }   // no backtrack, already accepted LB
-RuleMatch<RuleAtom>
-    = v:NO? w:MoveDirectionIdent x:RuleObject y:CommandIdent?  { DefRuleCell(Single(v),w,x,Single(y)) }
-    / NO? MoveDirectionIdent #error{ $"object expected" }
-    / v:NO? x:RuleObject y:CommandIdent?                       { DefRuleCell(Single(v),null,x,Single(y)) }
-    / v:NO? y:CommandIdent                                  { DefRuleCell(Single(v),null,null,y) }
-RuleEnd
-    = v:MESSAGE w:AnyText? { $"?{Single(w)}" }
-    / CommandIdent
-    / Ident #error{ $"move command expected" }        // no backtrack, accepted RA
-RuleObject = !LB !VB !RB !RA v:Defined { v }
-RAexp = RA / #error{ "right arrow expected" }
-RBexp = RB / #error{ "right bracket expected" }
-EOLX = EOLC / v:AnyText #error{ $"end of line expected: '{v}'" }
+rule_atom<RuleAtom>
+    = v:NO? w:move_direction_ident? x:rule_object     { DefRuleAtom(Single(v),Single(w),x.Item1,x.Item2,null) }
+    / v:NO? w:move_direction_ident? y:script_call     { DefRuleAtom(Single(v),Single(w),null,null,y) }
+    / ( NO / move_direction_ident ) #error{ $"object expected" }
+
+rule_command<CommandCall>
+    = v:command_arg_ident w:script_call  { DefCommandCall(state,v,w,null) }  // first
+    / v:command_arg_ident x:any_text     { DefCommandCall(state,v,null,x) }
+    / v:command_ident                    { DefCommandCall(state,v,null,null) }
+    / w:script_call                      { DefCommandScript(w) }
+    / ident #error{ $"rule command expected" }        // no backtrack, accepted RA
+
+rule_object<Pair<string,string>>
+    = !LB !VB !RB !RA &(id_or_glyph COLON) v:Variable COLON w:Defined { Pair.Create(v,w) }
+    / !LB !VB !RB !RA v:Defined                                     { Pair.Create((string)null,v) }
 
 //------------------------------------------------------------------------------
-WinConditionSection = WINCONDITIONS ( EOLC* !SectionStart WinLine )*
-WinLine 
-    = WSC v:WinActionExp w:DefinedExp ON x:DefinedExp EOLX { DefWinCondition(v,w,x) }
-    / WSC v:WinActionExp w:DefinedExp                 EOLX { DefWinCondition(v,w,null) }
-WinActionExp
-    = v:Ident &{ IsWinAction(v) } { v }
-    / v:Ident #error{ $"win action expected: {v}" }
+WinConditionSection = WINCONDITIONS ( EOLC* !section_start win_condition_line )*
+win_condition_line
+    = WSC v:win_condition w:DefinedExp ON x:DefinedExp y:script_call? EOLX { DefWinCondition(v,w,x,Single(y)) }
+    / WSC v:win_condition w:DefinedExp y:script_call?   EOLX { DefWinCondition(v,w,null,Single(y)) }
+    / WSC y:script_call?                                EOLX { DefWinCondition(null,null,null,Single(y)) }
+win_condition
+    = v:ident &{ IsWinAction(v) } { v }
+    / v:ident #error{ $"win action expected: {v}" }
 
 //------------------------------------------------------------------------------
-LevelSection = LEVELS ( EOLC* !SectionStart Level )*
-Level 
-    = MESSAGE v:AnyText? EOLW { DefMessage(Single(v)) }
+LevelSection = LEVELS ( EOLC* !section_start levels_body )*
+levels_body 
+    = MESSAGE v:any_text? EOLW { DefMessage(Single(v)) }
     / LegendLine
-    / v:LevelLine+ { DefLevel(state,v) }
-LevelLine = v:(!LP LEVELCHAR)+ EOLW { String.Concat(v.ToArray()) }  // .NET 3.5
+    / v:level_line+ { DefLevel(state,v) }
+level_line = v:(!LP LEVELCHAR)+ EOLW { String.Concat(v.ToArray()) }  // .NET 3.5
 
 //------------------------------------------------------------------------------
+// script with non-empty body can only terminate with "=="
+ScriptSection = SCRIPTS EOLW* script_body
+script_body 
+    = &section_start                        // empty body
+    / v:script_line+ { DefScript(state,v) }
+script_line 
+    = !( WS* "==" ) v:("" ( !CC . )* ) CR? LF { v }
 
+//------------------------------------------------------------------------------
 // complex tokens
 
+script_call<ScriptFunctionCall>
+    = AMPLC v:script_call_body RCexp { v }
+script_call_body<ScriptFunctionCall>
+    = v:ident LP w:ident<0,,WSO CMA> RP { DefScriptCall(v,w) }
+    / v:ident                           { DefScriptCall(v,null) }
+
 CanDefine
-    = v:IdOrGlyph !{ IsDefined(v) } { v }
-    / v:IdOrGlyph #error{ $"'{v}' already defined" }
+    = v:id_or_glyph !{ IsDefined(v) } { v }
+    / v:id_or_glyph #error{ $"'{v}' already defined" }
 DefinedExp 
     = Defined
-    / v:IdOrGlyph #error{ $"'{v}' not defined" }
+    / v:id_or_glyph #error{ $"'{v}' not defined" }
 Defined
-    = v:IdOrGlyph &{ IsDefined(v) } { v }
+    = v:id_or_glyph &{ IsDefined(v) } { v }
+Variable
+    = v:ident &{ IsVariable(v) } { v }
 
-SettingName = v:Ident &{ IsSetting(v) } { v }
-RulePrefixIdent = v:( Ident / . ) WSO &{ IsRulePrefix(v) } { v }  // includes '+'
-RuleDirectionIdent = v:Ident &{ IsRuleDirection(v) } { v }
-MoveDirectionIdent = v:( Ident / . ) WSO &{ IsMoveDirection(v) } { v } // includes '>' etc
-CommandIdent =  v:Ident &{ IsRuleCommand(v) } { v }
-SoundTriggerIdent =  v:Ident &{ IsSoundTrigger(v) } { v }
-Justify = v:Ident &{ IsJustify(v) } { v }
+// expecteds
+RBexp = RB / #error{ "right bracket expected" }
+RAexp = RA / #error{ "right arrow expected" }
+RCexp = RC / #error{ "right curly brace expected" }
+EOLX = EOLC / v:any_text #error{ $"end of line expected: '{v}'" }
+
+// tokens with checking
+setting_name = v:ident &{ IsSetting(v) } { v }
+rule_prefix_ident = v:( ident / . ) WSO &{ IsRulePrefix(v) || IsRuleDirection(v) } { v }  // includes '+'
+rule_direction_ident = v:ident &{ IsRuleDirection(v) } { v }
+move_direction_ident = v:( ident / . ) WSO &{ IsMoveDirection(v) } { v } // includes '>' etc
+command_ident =  v:ident &{ IsRuleCommand(v) } { v }
+command_arg_ident = &(MESSAGE / STATUS / LEVEL / Defined) v:ident { v }
+sound_trigger_ident =  v:ident &{ IsSoundTrigger(v) } { v }
+justify_ident = v:ident &{ IsJustify(v) } { v }
 
 // simple tokens
-ColourValue = v:( HexNumber / "" Letter+ ) WSC { v }
-Token = "" LEVELCHAR*
-Glyph = v:LEVELCHAR !LEVELCHAR { v }
-IdOrGlyph = v:( IdChar IdChar* / LEVELCHAR ) WSC { v }
-Ident = v:( IdChar IdChar* ) WSC { v }
-AnyText = v:("" ( !CC . )+ ) { v.Trim() }
-HexNumber = "#" HexDigit+ 
-FloatNumber = v:( Digit+ "." Digit+ / "" Digit+ ) IDX { v }
-
-SectionStart = OBJECTS / LEGEND / SOUNDS / COLLISIONLAYERS / RULES / WINCONDITIONS / LEVELS
+colour_value = v:( hex_number / "" Letter+ ) WSC { v }
+id_or_glyph = v:( IdChar IdChar* / LEVELCHAR ) WSC { v }
+token = v:("" LEVELCHAR+) WSC { v }
+glyph = v:LEVELCHAR ( &WS / &EOLC ) WSO { v }
+ident = v:( IdChar IdChar* ) IDX { v }
+any_text = v:("" ( !CC . )+ ) { v.Trim() }
+hex_number = v:("#" HexDigit+) IDX { v }
+float_number = v:( Digit+ "." Digit+ / "" Digit+ ) IDX { v }
+section_start = OBJECTS / LEGEND / SOUNDS / COLLISIONLAYERS / RULES / WINCONDITIONS / LEVELS / SCRIPTS
 
 // reserved words
 OBJECTS			= v:"objects"i           EOLC { v }
@@ -167,32 +185,31 @@ COLLISIONLAYERS = v:"collisionlayers"i   EOLC { v }
 RULES			= v:"rules"i             EOLC { v }
 WINCONDITIONS	= v:"winconditions"i     EOLC { v }
 LEVELS			= v:"levels"i            EOLC { v }
-RULELOOP = v:( "startloop"i / "endloop"i ) IDX { v }
+SCRIPTS         = v:"scripts"i           EOLC { v }
+
+LEVEL = "level"i IDX
 MESSAGE = "message"i IDX
+RULELOOP = v:( "startloop"i / "endloop"i ) IDX { v }
+STATUS = "status"i IDX
+TEXT = "text"i IDX
 ON = "on"i IDX
 AND = "and"i IDX
 OR = "or"i IDX
 NO = "no"i IDX
 
 // Various kinds of whitespace
-//CommentInline = SP* "//" (!CC .)*
-CommentBlock = SP* LP ( !RP ( &LP CommentBlock / . ) )* RP
-CommentLine = SP* "==" ( !CC . )* CR? LF
+//CommentInline = WS* "//" (!CC .)*
+comment_block = WS* LP ( !RP ( &LP comment_block / . ) )* RP
+comment_line = WS* "==" ( !CC . )* CR? LF
 
-WSC = CommentBlock* SP* { "" }      // wherever optional whitespace permitted (discarded)
-EOLC = CommentBlock* EOLW { "" }    // end of line, comment allowed (discarded)
-EOLW = SP* CR? LF CommentLine* { Eol(state) }    // end of line, comment not allowed (discarded)
-IDX = !IdChar SP* { "" }            // end of ident possibly followed by WS (discarded)
+WSC = comment_block* WS* { "" }      // whitespace, optional comment block (discarded)
+EOLC = comment_block* EOLW { "" }    // end of line, optional comment block (discarded)
+EOLW = WS* ( CR? LF / SEMI )        // end of line, no comment block (discarded)
+     / comment_line
+IDX = !IdChar WS* { "" }            // end of ident possibly followed by WS (discarded)
+WSO =  WS* { "" }                   // optional whitespace
 
-// character sets (not tokens)
-IdChar = Letter / Digit / IdCharX
-Letter = [a-zA-Z];
-Digit = [0-9];
-HexDigit = [a-fA-F0-9];
-SpriteChar = [.0-9] 
-IdCharX = [_$];
-LEVELCHAR = [\x21-\xfe\u0100-\uffff]
-
+SEMI = ";" WSO
 EQ = "=" WSO
 LP = "(" WSO
 RP = ")" WSO
@@ -202,10 +219,21 @@ VB = "|" WSO
 RA = "->" WSO
 CMA = "," WSO
 ELLIP = "..." WSO
-WSO =  SP* { "" }
+COLON = ":" WSO
+AMPLC = "&{" WSO;
+//LC = "{" WSO;
+RC = "}" WSO;
 
+// character sets (not tokens)
+IdChar = Letter / Digit / IdCharX
+Letter = [a-zA-Z];
+Digit = [0-9];
+HexDigit = [a-fA-F0-9];
+SpriteChar = [.0-9] 
+IdCharX = [._$];
+LEVELCHAR = [\x21-\xfe\u0100-\uffff]
 CC = [\x00-\x1f]
-SP = [ \t] 
+WS = [ \t] 
 CR = "\r"
-LF = "\n" 
+LF = "\n" { Eol(state) }  // update listing whenever recognised
 EOF = !.

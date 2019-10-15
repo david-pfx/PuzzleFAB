@@ -22,12 +22,12 @@ internal class ModelInfo {
   MainController _main { get { return MainController.Instance; } }
 
   GameModel _model = null;
-  Sprite[] _sprites;
+  List<Sprite> _sprites;
   Dictionary<string, AudioClip> _soundlookup = new Dictionary<string, AudioClip>();
   StringWriter _logwriter = new StringWriter();
 
   internal Sprite GetSprite(int id) {
-    return (id >= 1 && id <= _sprites.Length) ? _sprites[id - 1] : null;
+    return (id >= 1 && id <= _sprites.Count) ? _sprites[id - 1] : null;
   }
 
   // get a clip from a seed or name
@@ -87,15 +87,13 @@ internal class ModelInfo {
 
   // make a table of all the images in this game
   void LoadGameAssets() {
-    _sprites = new Sprite[_model.GameDef.ObjectCount];
-    var spcount = 0;
-    for (int i = 1; i <= _model.GameDef.ObjectCount; i++) {
-      var obj = _model.GameDef.GetObject(i);
-      if (obj.Width > 0) {
-        var texture = MakeTexture(obj.Width, obj.Sprite);
+    _sprites = new List<Sprite>();
+    foreach (var sinfo in _model.GetSprites()) {
+      if (sinfo.Item1 == 0) _sprites.Add(null);
+      else {
+        var texture = MakeTexture(sinfo.Item1, sinfo.Item2);
         var sprite = Sprite.Create(texture, new Rect(0, 0, texture.width, texture.height), new Vector2(0.5f, 0.5f));
-        _sprites[i - 1] = sprite;
-        ++spcount;
+        _sprites.Add(sprite);
       }
     }
     _soundlookup = new Dictionary<string, AudioClip>();
@@ -103,7 +101,7 @@ internal class ModelInfo {
       var nseed = seed.SafeIntParse() ?? 0;
       _soundlookup[seed] = (nseed > 0) ? Nsfxr.Generate(nseed) : _main.DefaultSound;
     }
-    Util.Trace(1, "Load assets objects={0} sounds={1}", spcount, _soundlookup.Count);
+    Util.Trace(1, "Load assets objects={0} sounds={1}", _sprites.Count, _soundlookup.Count);
   }
 
   // Create a texture from an array of colours

@@ -54,7 +54,7 @@ public class ScriptSelectionView : MonoBehaviour {
       ListVerticalScrollbar.value = 1;
       _activepageno = SelectionPageNo = selno;
     }
-    var text = (Selection == null) ? "Please make a selection" : _scldr.ReadScript(Selection, false);
+    var text = (Selection == null) ? "Please make a selection" : _scldr.ReadScript(Selection);
     ScriptText.text = (text == null) ? _notreadytext : text.Left(2000);
   }
 

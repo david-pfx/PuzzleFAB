@@ -39,6 +39,7 @@ namespace PuzzLangTest {
         return new List<string[]> {
           new string[] { "Simple Block Pushing", _sbp, null, null, "right" },
           new string[] { "PRBG filled", _extraprelude, _template, _game_prbg, "right" },
+          new string[] { "PRBGX extended", _extraprelude, _template_ext, _game_prbg_ext, "right" },
         };
       }
     }
@@ -66,7 +67,7 @@ namespace PuzzLangTest {
 
     private static string FixSubs(string subs, string newsubs) {
       var lookup = subs.Split('@').ToDictionary(t => t.Substring(0,5), t => t);
-      foreach (var s in newsubs.Split('@'))
+      foreach (var s in newsubs.Split('@').Where(s => s.Length >= 4))
         lookup[s.Substring(0, 5)] = s;
       return lookup.Values.Join("@");
     }
@@ -88,8 +89,19 @@ namespace PuzzLangTest {
     static string _game_prbg =
        "(pre):;" +
       "@(obj):Background;black;;PLAYER P;white;;R;RED;;B;BLUE;;G;green;;Y;yellow;;K;Pink;;" +
-      "@(leg):. = Background;a = R and K;o = R or G or B or Y;ork = R or K;oyk = Y or K" +
+      "@(leg):. = Background;a = R and K;o = R or G or B or Y;ork = R or K;oyk = Y or K;obk = B or K" +
       "@(col):Background;Y;Player,R,B,G;K;" +
+      "@(rul):[ > P | a] -> [ > P | > a];" +
+      "@(win):no p;" +
+      "@(lev):message starting;.......;.g.P.a.;...R...;.......;";
+
+    // Ditto with extensions
+    static string _game_prbg_ext =
+       "(pre):;" +
+      "@(obj):Background;black;;PLAYER P;white;;R;RED;;B;BLUE;;G;green;;Y;yellow;;K;Pink;;S;purple;text SSS" +
+      "@(leg):. = Background;a = R and K;o = R or G or B or Y;ork = R or K;oyk = Y or K" +
+      "@(col):Background;Y;Player,R,B,G;K;S;" +
+      "@(scr):;" +
       "@(rul):[ > P | a] -> [ > P | > a];" +
       "@(win):no p;" +
       "@(lev):message starting;.......;.g.P.a.;...R...;.......;";
@@ -104,6 +116,16 @@ namespace PuzzLangTest {
       ";======;RULES;======;(rul)" +
       ";==============;WINCONDITIONS;==============;(win)" +
       ";=======;LEVELS;=======;(lev)";
+    static string _template_ext =
+      "(pre)" +
+      ";==;OBJECTS;========;(obj)" +
+      ";==;LEGEND;=======;(leg)" +
+      ";==;SOUNDS;=======;(sou)" +
+      ";==;COLLISIONLAYERS;================;(col)" +
+      ";==;SCRIPTS;======;(scr)" +
+      ";==;RULES;======;(rul)" +
+      ";==;WINCONDITIONS;==============;(win)" +
+      ";==;LEVELS;=======;(lev)";
 
     //--- full game verbatim from https://www.puzzlescript.net/editor.html
     static string _sbp = @"title Simple Block Pushing Game

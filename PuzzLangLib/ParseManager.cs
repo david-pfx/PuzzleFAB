@@ -22,7 +22,8 @@ namespace PuzzLangLib {
   /// A subrule is an ordered list of cells (disjoint subpatterns)
   /// </summary>
   class SubRule {
-    internal IList<Direction> Directions;             // direction(s) to look for match
+    internal IList<RulePrefix> Prefixes;              // rule prefixes
+    internal IList<Direction> Directions;             // rule direction(s)
     internal IList<IList<RuleAtom>> Cells;  // sub-parts to match or act on
 
     public override string ToString() {
@@ -43,27 +44,40 @@ namespace PuzzLangLib {
   class RuleAtom {
     internal static readonly ObjectSymbol Ellipsis = new ObjectSymbol();
     internal static readonly ObjectSymbol Empty = new ObjectSymbol();
-    internal bool IsNegated { get; private set; }           // if this is a negative test
-    internal Direction Direction { get; private set; }   // direction object should be moving 
+    internal bool IsNegated { get; private set; }          // if this is a negative test
+    internal Direction Direction { get; private set; }     // direction object should be moving 
     internal ObjectSymbol Symbol { get; private set; }     // object/set to match at location
-    internal RuleCommand Command { get; private set; }   // action to take if rule part succeeds
+    internal ObjectSymbol Variable { get; private set; }   // variable set with result of match
+    internal ScriptFunctionCall Call { get; private set; }         // link to script call
 
     internal bool IsEllipsis { get { return Symbol == Ellipsis; } }
+    internal bool IsRandom { get { return Direction == Direction.Random; } }
     internal bool HasObject { get { return Symbol.ObjectIds.Count > 0; } }
+    internal bool HasVariable { get { return Variable != null; } }
+    internal bool IsFunction { get { return Call != null; } }
+
+    // a matching atom has the same symbol, negation and random, not necessarily the same direction
     internal bool Matches(RuleAtom other) {
-      return other.Symbol == Symbol && other.IsNegated == IsNegated && other.IsEllipsis == IsEllipsis;
+      return other.Symbol == Symbol && other.IsNegated == IsNegated
+        && other.IsEllipsis == IsEllipsis && other.IsRandom == IsRandom;
     }
 
     // note: object name used here, not tostring()
     public override string ToString() {
-      return IsEllipsis ? "..." : Util.JoinNonEmpty(" ", IsNegated ? "no" : "",
-        Direction == Direction.None ? "" : Direction.ToString(),
-        Symbol.Name, Command == RuleCommand.None ? "" : Command.ToString());
+      if (IsEllipsis) return "...";
+      return Util.JoinNonEmpty(" ", IsNegated ? "no" : "",
+        Direction == Direction.None ? "" : Direction.ToString(), 
+        Variable == null ? Symbol.Name : Variable.Name + ":" + Symbol.Name);
     }
 
-    internal static RuleAtom Create(bool isnegated, Direction direction, ObjectSymbol objects, RuleCommand command) {
+    internal static RuleAtom Create(bool isnegated, Direction direction, ObjectSymbol objects, 
+                                    ObjectSymbol variable, ScriptFunctionCall call) {
       return new RuleAtom {
-        IsNegated = isnegated, Direction = direction, Symbol = objects, Command = command,
+        IsNegated = isnegated,
+        Direction = direction,
+        Symbol = objects,
+        Variable = variable,
+        Call = call,
       };
     }
 
@@ -87,12 +101,13 @@ namespace PuzzLangLib {
   /// </summary>
   class AtomicRule {
     internal int RuleId;
-    internal IList<RulePrefix> Prefixes;
-    internal IList<Direction> Directions;
+    internal HashSet<RulePrefix> Prefixes;
+    internal HashSet<Direction> Directions;
     internal IList<SubRule> Patterns;
     internal IList<SubRule> Actions;
-    internal IList<Pair<RuleCommand, string>> Commands;  // .NET 3.5
+    internal IList<CommandCall> Commands;
 
+    public bool IsFinal { get { return Prefixes.Contains(RulePrefix.Final); } }
     public bool HasAction { get { return Actions.Count > 0; } }
     public bool HasCommand { get { return Commands.Count > 0; } }
 
@@ -116,21 +131,23 @@ namespace PuzzLangLib {
   class ObjectSymbol {
     internal string Name;
     internal SymbolKind Kind;
-    internal HashSet<int> ObjectIds = new HashSet<int>();
+    internal IList<int> ObjectIds = new List<int>();
+
+    public bool IsObject { get { return Kind != SymbolKind.None; }}
 
     // true if references the same objects in the same way
-    internal bool IsSame(ObjectSymbol other) {
-      return Kind == other.Kind && ObjectIds.SetEquals(other.ObjectIds);
-    }
-
-    // true if groups reference at least some of the same objects
+    // CHECK: same ids in different sequence will fail
     internal bool Matches(ObjectSymbol other) {
-      return ObjectIds.SetEquals(other.ObjectIds);
-      //return ObjectIds.Overlaps(other.ObjectIds);
+      return ObjectIds.SequenceEqual(other.ObjectIds);
     }
 
     public override string ToString() {
       return String.Format("{0}:{1}({2})", Name, Kind, ObjectIds.Join());
+    }
+
+    internal void SetVarRef(int varid) {
+      if (Kind != SymbolKind.RefObject) throw Error.Assert($"ref {varid}");
+      ObjectIds = new List<int> { varid };
     }
   }
 
@@ -143,12 +160,14 @@ namespace PuzzLangLib {
 
     public int ErrorCount { get; set; }
     public int WarningCount { get; private set; }
+    public int RuleCount { get { return AtomicRules.Count; } }
     internal GameDef GameDef { get { return _gamedef; } }
     internal SettingsParser SettingsParser { get; private set; }
     internal ColourParser ColourParser { get; private set; }
     internal PuzzLangParser PegParser { get; private set; }
     // access to expanded rules for testing
     internal IList<AtomicRule> AtomicRules { get { return _atomicrules; } }
+    internal IEnumerable<ObjectSymbol> Symbols { get { return _symbols.Values; } }
 
     int _linenumber { get { return PegParser.LineNumber; } }
 
@@ -173,12 +192,13 @@ namespace PuzzLangLib {
     static internal ParseManager Create(string source, TextWriter tw, IList<Pair<string,string>> settings = null) {
       var cp = new ColourParser();
       var gamedef = new GameDef();
+      gamedef.Scripts = ScriptManager.Create(gamedef);
       gamedef.Palette = cp.GetPalette();
       var gp = new ParseManager {
         _sourcename = source,
         _out = tw,
         _gamedef = gamedef,
-        SettingsParser = new SettingsParser { Game = gamedef, Colour = cp },
+        SettingsParser = new SettingsParser { GameDef = gamedef, Colour = cp },
         ColourParser = cp,
       };
       if (settings != null)
@@ -203,26 +223,38 @@ namespace PuzzLangLib {
     }
 
     internal ObjectSymbol ParseSymbol(string name) {
-      Logger.Assert(name != null);
-      return _symbols.SafeLookup(name);
+      return (name == null) ? null : _symbols.SafeLookup(name);
     }
 
-    // get a set of objects ids to use as a mask
-    internal HashSet<int> ParseMask(string name) {
+    // get a set of objects ids defined by OR to use as a property
+    internal IList<int> ParseProperty(string name) {
       var sym = ParseSymbol(name);
       Logger.Assert(sym != null, name);
-      if (!(sym.Kind == SymbolKind.Real||sym.Kind == SymbolKind.Property))
+      if (!(sym.Kind == SymbolKind.Real || sym.Kind == SymbolKind.Property))
         CompileError("object '{0}' may only use OR", name);
       return sym.ObjectIds;
     }
 
-    // get a set of objects ids to use as a pile
-    internal HashSet<int> ParsePile(string name) {
+    // get a set of objects ids defined by AND to use as an aggregate
+    internal IList<int> ParseAggregate(string name) {
       var sym = ParseSymbol(name);
       Logger.Assert(sym != null, name);
       if (!(sym.Kind == SymbolKind.Real || sym.Kind == SymbolKind.Aggregate))
         CompileError("object '{0}' may only use AND", name);
       return sym.ObjectIds;
+    }
+
+    // define or return a variable, null if cannot
+    internal ObjectSymbol ParseVariable(string name) {
+      var sym = _symbols.SafeLookup(name);
+      if (sym == null) {
+        _symbols[name] = sym = new ObjectSymbol {
+          Name = name,
+          Kind = SymbolKind.RefObject,
+          ObjectIds = new List<int>(),   // must get added later
+        };
+      }
+      return sym.Kind == SymbolKind.RefObject ? sym : null;
     }
 
     internal RulePrefix ParseRulePrefix(string value) {
@@ -231,14 +263,19 @@ namespace PuzzLangLib {
       return value.SafeEnumParse<RulePrefix>() ?? RulePrefix.None;
     }
 
-    internal RuleCommand ParseRuleCommand(string value) {
-      if (value == null || value.EndsWith("_")) return RuleCommand.None;
-      return value.SafeEnumParse<RuleCommand>() ?? RuleCommand.None;
+    internal CommandName ParseCommandName(string value) {
+      if (value == null || value.EndsWith("_")) return CommandName.None;
+      return value.SafeEnumParse<CommandName>() ?? CommandName.None;
     }
 
     internal SoundTrigger ParseTriggerEvent(string value) {
       if (value == null || value.EndsWith("_")) return SoundTrigger.None;
       return value.SafeEnumParse<SoundTrigger>() ?? SoundTrigger.None;
+    }
+
+    internal ScriptFunctionCall ParseScriptCall(ScriptFunctionCall call) {
+      call.CheckParse();
+      return call;
     }
 
     // Add a named sprite object to symbol table and object list
@@ -247,7 +284,7 @@ namespace PuzzLangLib {
       _symbols[name] = new ObjectSymbol {
         Name = name,
         Kind = SymbolKind.Real,
-        ObjectIds = new HashSet<int> { _gamedef.PuzzleObjects.Count + 1 },
+        ObjectIds = new List<int> { _gamedef.PuzzleObjects.Count + 1 },
       };
       _gamedef.PuzzleObjects.Add(new PuzzleObject {
         Name = name,
@@ -259,7 +296,7 @@ namespace PuzzLangLib {
         TextColour = textcolour,
         Text = text,
       });
-      DebugLog("Sprite Object {0}: '{1}' {2}x{3} {4} {5} {6}",
+      DebugLog("Sprite Object {0}: '{1}' {2}x{3} {4} {5} '{6}'",
         _gamedef.PuzzleObjects.Count, name, width, grid.Count / width, scale, pivot, text);
       Logger.WriteLine(4, "{0}", grid.Select(c => String.Format("{0:X}", c)).Join());
       return _gamedef.PuzzleObjects.Count;
@@ -275,8 +312,8 @@ namespace PuzzLangLib {
         sym.Kind = (oper == LogicOperator.And) ? SymbolKind.Aggregate : SymbolKind.Property;
       
       // these are bad, otherwise use whatever we have
-      if ((oper == LogicOperator.And && sym.Kind == SymbolKind.Property)
-        || (oper == LogicOperator.Or && sym.Kind == SymbolKind.Aggregate)) {
+      if ((oper == LogicOperator.And && sym.Kind != SymbolKind.Aggregate)
+        || (oper == LogicOperator.Or && sym.Kind != SymbolKind.Property)) {
         CompileError("incompatible symbols: {0}", others.Join());
       }
       _symbols[name] = sym;
@@ -286,26 +323,18 @@ namespace PuzzLangLib {
         name, decode, sym.Kind, sym.ObjectIds.Select(o => _gamedef.ShowName(o)).Join());
     }
 
-    //internal void AddTextStringDef(string name, ObjectSymbol textsym, string text) {
-    //  var textobj = _gamedef.GetObject(textsym.Objects.First()) as TextObject;
-    //  AddTextObjectDef(name, textobj.ForeColour, textobj.BackColour, textobj.Justify, textobj.Height, text);
-    //}
-
-    static readonly SymbolKind[] _symbolkindlookkup = new SymbolKind[] {
-      SymbolKind.Real, SymbolKind.Property, SymbolKind.Aggregate, SymbolKind.Mixed
-    };
-
-    // collect names objects, check out compatibility
+    // collect named objects, check out compatibility
     // returns a partially filled-in symbol -- needs name and final kind
-    ObjectSymbol CollectObjects(IList<ObjectSymbol> syms) {
-      var kinds = syms.Select(s => s.Kind).ToList();
+    ObjectSymbol CollectObjects(IEnumerable<ObjectSymbol> syms) {
+      var kinds = syms.Select(s => s.Kind).Distinct();
       if (kinds.Contains(SymbolKind.Mixed)) throw Error.Assert("stored mixed");
-      var kindx = (kinds.Contains(SymbolKind.Property) ? 1 : 0)
-        + (kinds.Contains(SymbolKind.Aggregate) ? 2 : 0);
-      var objects = new HashSet<int>(syms.SelectMany(s => s.ObjectIds));
+      var kind = (kinds.Count() == 1) ? kinds.First()
+        : (kinds.Count() == 2 && kinds.Contains(SymbolKind.Real)) ? kinds.First(k => k != SymbolKind.Real)
+        : SymbolKind.Mixed;
+      var objects = syms.SelectMany(s => s.ObjectIds);
       return new ObjectSymbol {
-        Kind = _symbolkindlookkup[kindx],
-        ObjectIds = objects,
+        Kind = kind,
+        ObjectIds = objects.ToList(),
       };
     }
 
@@ -313,7 +342,7 @@ namespace PuzzLangLib {
       Logger.WriteLine(2, "Sound {0}: {1} {2} {3}", trigger, seed, objct, directions.Join());
       var trig = ParseTriggerEvent(trigger);
       if (trig <= MaxWithObject_) {
-        var obj = ParseMask(objct);
+        var obj = ParseProperty(objct);
         if (directions != null && directions.Count > 0)
           _gamedef.AddObjectSound(trig, obj, directions.Select(c => ParseDirection(c)), seed);
         else _gamedef.AddObjectSound(trig, obj, null, seed);
@@ -330,13 +359,13 @@ namespace PuzzLangLib {
     }
 
     // add a win condition as a relationship between two masks
-    internal void AddWin(string condition, string ident, string other) {
+    internal void AddWin(string condition, string ident, string other, ScriptFunctionCall call) {
       var winco = condition.SafeEnumParse<MatchOperator>() ?? MatchOperator.None;
       // Any is an (undocumented) synonym for Some
       _gamedef.AddWinCondition(winco == MatchOperator.Any ? MatchOperator.Some : winco,
-        ParseMask(ident), (other == null) ? null : ParseMask(other));
-      //_gamedef.AddWinCondition(condition.SafeEnumParse<MatchOperator>() ?? MatchOperator.None,
-      //  ParseMask(ident), (other == null) ? null : ParseMask(other));
+        ParseProperty(ident), 
+        (other == null) ? null : ParseProperty(other), 
+        (call == null) ? null : ParseScriptCall(call));
     }
 
     // update loop state, return true if ok
@@ -348,53 +377,60 @@ namespace PuzzLangLib {
     }
 
 
-    // expand rule and add to game data
+    // expand rule and add compiled rule to game data
     internal void AddRule(int ruleid, IList<RulePrefix> prefixes, IList<Direction> directions,
-      IList<SubRule> pattern, IList<SubRule> action, IList<string> commands) {
+      IList<SubRule> pattern, IList<SubRule> action, IList<CommandCall> commands) {
 
       // create the base rule with unexpanded directions
       var arule = new AtomicRule {
         RuleId = ruleid,
-        Prefixes = prefixes,
-        Directions = directions,
+        Prefixes = new HashSet<RulePrefix>(prefixes),
+        Directions = new HashSet<Direction>(directions),
         Patterns = pattern,
         Actions = action,
-        Commands = commands.Select(c => ParseCommand(c)).ToList(),
+        Commands = commands,
       };
 
-      // expanded rules all go in the same group
-      var rulegroup = _gamedef.GetRuleGroup(
-            arule.Prefixes.Contains(RulePrefix.Late),   // choose rulegroup set
-            arule.Prefixes.Contains(RulePrefix.Plus_),  // choose rulegroup
-            arule.Prefixes.Contains(RulePrefix.Random), // at runtime choose rule from group
-            arule.Prefixes.Contains(RulePrefix.Rigid),  // entire group is rigid
-            _inloop ? _loopcounter : 0);
-      foreach (var prule in _rulebuilder.PrepareRule(arule, rulegroup.Id)) {
+      // expand rules, all going in the same group, then compile them
+      var rulegroup = _gamedef.GetRuleGroup(arule.Prefixes, _inloop ? _loopcounter : 0);
+      foreach (var prule in _rulebuilder.BuildRuleList(arule, rulegroup.Id)) {
         _atomicrules.Add(prule);
         rulegroup.Rules.Add(_rulebuilder.CompileRule(prule));
+        rulegroup.IsFinal |= prule.IsFinal;       // propagate retry suppression to group
       }
     }
 
-    Pair<RuleCommand, string> ParseCommand(string command) {
-      // if the command is a message then handle it
-      if (command.StartsWith("?")) return Pair.Create(RuleCommand.Message, command.Substring(1));
-
+    internal CommandCall CreateCommandCall(string ident, ScriptFunctionCall call, string argument) {
       // if the command is a sound then it's a sound command
-      var sound = ParseTriggerEvent(command);
+      var sound = ParseTriggerEvent(ident);
       if (sound >= MinSound_) {
         var seed = _gamedef.GameSounds.SafeLookup(sound);
-        if (seed == null) CompileWarn("sound not defined: {0}", command);
-        return Pair.Create(RuleCommand.Sound_, seed ?? "");
+        if (seed == null) CompileWarn("sound not defined: {0}", ident);
+        return CommandCall.Create(CommandName.Sound_, seed, call);
       }
-      // otherwise it's a normal command
-      return Pair.Create(ParseRuleCommand(command), "");
+      // is it a normal command?
+      var command = ParseCommandName(ident);
+      if (command != CommandName.None)
+        return CommandCall.Create(command, argument, call);
+      var sym = ParseSymbol(ident);
+      if (sym != null)
+        return CommandCall.Create(CommandName.Text_, argument, call, sym);
+      return null;
+    }
+
+    internal CommandCall CreateCommandCall(ScriptFunctionCall call) {
+      return new CommandCall {
+        funcCall = ParseScriptCall(call),
+      };
     }
 
     // create temporary rule subpart info
-    internal RuleAtom CreateRuleCell(string noflag, string direction, string objct, string command) {
-      return RuleAtom.Create(noflag != null, ParseDirection(direction), 
-        (objct == null) ? RuleAtom.Empty : (objct == "...") ? RuleAtom.Ellipsis : ParseSymbol(objct), 
-        ParseRuleCommand(command));
+    internal RuleAtom CreateRuleCell(string noflag, string direction, string prefix, string ident, ScriptFunctionCall call) {
+      return RuleAtom.Create(noflag != null, ParseDirection(direction),
+        (ident == null) ? RuleAtom.Empty :
+        (ident == "...") ? RuleAtom.Ellipsis : ParseSymbol(ident),
+        prefix == null ? null : ParseVariable(prefix),
+        call == null ? null : ParseScriptCall(call));
     }
 
     // Parse and add a level
@@ -403,7 +439,7 @@ namespace PuzzLangLib {
         var background = _symbols.SafeLookup("background");
         if (background == null) {
           CompileError("background not defined");
-          _gamedef.Background = new HashSet<int> { 0 };
+          _gamedef.Background = new List<int> { 0 };
         } else _gamedef.Background = background.ObjectIds;
       }
       var level = ParseLevel(lines);
@@ -412,8 +448,13 @@ namespace PuzzLangLib {
     }
 
     internal void AddMessage(string message) {
-      DebugLog("Level {0}: '{1}'", _gamedef.Messages.Count, message);
+      DebugLog("Message {0}: '{1}'", _gamedef.Messages.Count, message);
       _gamedef.AddMessage(message);
+    }
+
+    internal void AddScript(IList<string> lines) {
+      DebugLog("Script: '{0}'", lines.FirstOrDefault());
+      _gamedef.Scripts.AddScript(this, lines);
     }
 
     // Parse an array of grid lines and depth, converting glyphs into objects in layers
@@ -421,7 +462,7 @@ namespace PuzzLangLib {
       var width = gridlines.Max(g => g.Length);
       if (gridlines.Any(l => l.Length != width))
         CompileWarn("short level line(s)");
-      var bgobjects = new HashSet<int>();
+      var bgobjects = new List<int>();
 
       // create empty level of required size
       var level = Level.Create(width, gridlines.Count, _gamedef.LayerCount,
@@ -436,7 +477,7 @@ namespace PuzzLangLib {
         // parse each column (which must be a glyph object or pile)
         // track any background objects seen
         for (int x = 0; x < line.Length; x++) {
-          foreach (var obj in ParsePile(line.Substring(x, 1))) {
+          foreach (var obj in ParseAggregate(line.Substring(x, 1))) {
             if (_gamedef.Background.Contains(obj))
               bgobjects.Add(obj);
             var layer = _gamedef.GetLayer(obj);
@@ -461,14 +502,14 @@ namespace PuzzLangLib {
       var clickable = _symbols.SafeLookup("clickable");
       if (player == null && clickable == null) CompileError("must define player or clickable");
       if (player != null) {
-        _gamedef.Players = ParseMask("player");
+        _gamedef.Players = ParseProperty("player");
         if (!_gamedef.BoolSettings.ContainsKey(OptionSetting.arrows))
           _gamedef.BoolSettings[OptionSetting.arrows] = true;
         if (!_gamedef.BoolSettings.ContainsKey(OptionSetting.action))
           _gamedef.BoolSettings[OptionSetting.action] = true;
       }
       if (clickable != null) {
-        _gamedef.Clickables = ParseMask("clickable");
+        _gamedef.Clickables = ParseProperty("clickable");
         if (!_gamedef.BoolSettings.ContainsKey(OptionSetting.click))
           _gamedef.BoolSettings[OptionSetting.click] = true;
       }

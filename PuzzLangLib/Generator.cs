@@ -29,21 +29,26 @@ namespace PuzzLangLib {
     Start,      // signals beginning of match process
     StepD,      // signals move to next pattern cell
     TrailX,     // set trail index for action
-    FindO,      // Find set of objects
-    FindOM,     // Find set of moving objects
-    TestON,     // Test set of objects at location
-    TestOMN,    // Test moving set of objects at location
-    ScanODN,    // Scan set of objects from location
+    FindOM,     // Find set of objects
+    TestOMN,    // Test set of objects at location
+    TestXMN,    // Test ditto but using path var
     ScanOMDN,   // Scan moving set of objects from location
-    CheckON,    // Check objects at index
-    CheckOMN,   // Check moving objects at index
+    CheckOMN,   // Check objects at path index
     CreateO,    // Create object at index
     DestroyO,   // Destroy object at index
     MoveOM,     // Set object movement at index
-    RMoveOM,    // Rigid Set object movement at index
+    RMoveOM,    // Rigid Set object movement at index (not used)
+    StoreXO,    // Store object ref into variable
     CommandC,   // command code
-    MessageT,   // message with text
-    SoundT,     // sound seed
+    CommandCS,  // command code, string arg
+    CommandCSO, // command code, string arg, object list
+    // opcodes for communicating with scripts
+    LoadT,      // Load value from named script variable
+    CallT,      // Call named script function with arguments
+    FArgO,      // Push object list to arg list
+    FArgN,      // Push number to arg list
+    FArgT,      // Push string to arg list
+    TestR,      // Break if result false
   };
 
   class RuleCode {
@@ -80,12 +85,12 @@ namespace PuzzLangLib {
       _gcode.Add((int)opcode);
     }
 
-    internal void Emit(int value) {
-      _gcode.Add(value);
+    internal void Emit(bool value) {
+      _gcode.Add(value ? 1 : 0);
     }
 
-    internal void Emit(bool noFlag) {
-      _gcode.Add(noFlag ? 1 : 0);
+    internal void Emit(int value) {
+      _gcode.Add(value);
     }
 
     internal void Emit(Direction direction) {
@@ -101,18 +106,26 @@ namespace PuzzLangLib {
       _gcode.Add(asint);
     }
 
-    internal void Emit(HashSet<Direction> set) {  // .NET 3.5
+    internal void Emit(IEnumerable<Direction> set) {
       _gcode.Add(set.Cast<int>());
 
     }
 
-    internal void Emit(HashSet<int> objects) {
-      _gcode.Add(objects);
+    internal void Emit(IEnumerable<int> intlist) {
+      _gcode.Add(intlist);
+    }
+
+    internal void Emit(ObjectSymbol symbol) {
+      if (symbol.Kind == SymbolKind.RefObject)
+        Emit(~symbol.ObjectIds.First());
+      else if (symbol.Kind == SymbolKind.Script)
+        Emit(-99);
+      else Emit(symbol.ObjectIds);
     }
 
     // decode current compiled code
     internal void Decode(string message, TextWriter tw) {
-      tw.WriteLine("Decode {0} len={1}", message, _gcode.IsEmpty);
+      tw.WriteLine("Decode {0} len={1}", message, _gcode.Code.Count);
       StringWriter sw = new StringWriter();
       for (_gpc = 0; _gpc < _gcode.Code.Count; ) {
         var opcode = (Opcodes)_gcode.Code[_gpc++];
@@ -124,42 +137,62 @@ namespace PuzzLangLib {
         case Opcodes.PUSHS:
         case Opcodes.PUSHSD:
         case Opcodes.Start:
+        case Opcodes.TestR:
           break;
         case Opcodes.StepD:
-          sw.Write((Direction)_gcode.Code[_gpc++]);
+          sw.Write((Direction)DecodeInt());
           break;
         case Opcodes.TrailX:
-          sw.Write(_gcode.Code[_gpc++]);
+          sw.Write(DecodeInt());
           break;
         case Opcodes.DestroyO:
-          sw.Write("objs: {0}", DecodeSet());
+          sw.Write("objs:{0}", DecodeList());
           break;
-        case Opcodes.FindO:
-        case Opcodes.TestON:
-        case Opcodes.CheckON:
-          sw.Write("objs: {0} {1}", DecodeSet(), (MatchOperator)_gcode.Code[_gpc++]);
+        case Opcodes.StoreXO:
+          sw.Write("var:v{0} objs:{1}", DecodeInt(), DecodeList());
           break;
         case Opcodes.MoveOM:
         case Opcodes.RMoveOM:
         case Opcodes.CreateO:
-          sw.Write("objs: {0} {1}", DecodeSet(), (Direction)_gcode.Code[_gpc++]);
+          sw.Write("objs:{0} move:{1}", DecodeList(), (Direction)DecodeInt());
           break;
         case Opcodes.FindOM:
-        case Opcodes.ScanODN:
         case Opcodes.TestOMN:
         case Opcodes.CheckOMN:
-          sw.Write("objs: {0} step:{1} {2}", DecodeSet(), (Direction)_gcode.Code[_gpc++], (MatchOperator)_gcode.Code[_gpc++]);
+          sw.Write("objs:{0} move:{1} match:{2}", DecodeList(), (Direction)DecodeInt(), 
+            (MatchOperator)DecodeInt());
+          break;
+        case Opcodes.TestXMN:
+          sw.Write("off:{0} move:{1} match:{2}", DecodeInt(), (Direction)DecodeInt(),
+            (MatchOperator)DecodeInt());
           break;
         case Opcodes.ScanOMDN:
-          sw.Write("objs: {0} step:{1} {2} {3}", DecodeSet(), (Direction)_gcode.Code[_gpc++], 
-            (Direction)_gcode.Code[_gpc++], (MatchOperator)_gcode.Code[_gpc++]);
+          sw.Write("objs:{0} step:{1} move:{2} match:{3}", DecodeList(), (Direction)DecodeInt(), 
+            (Direction)DecodeInt(), (MatchOperator)DecodeInt());
           break;
         case Opcodes.CommandC:
-          sw.Write((RuleCommand)_gcode.Code[_gpc++]);
+          sw.Write("call:{0}", (CommandName)DecodeInt());
           break;
-        case Opcodes.SoundT:
-        case Opcodes.MessageT:
-          sw.Write("'{0}'", DecodeText());
+        case Opcodes.CommandCS:
+          sw.Write("call:{0} arg:{1}", (CommandName)DecodeInt(), DecodeText());
+          break;
+        case Opcodes.CommandCSO:
+          sw.Write("call:{0} arg:{1} objs:{2}", (CommandName)DecodeInt(), DecodeText(), DecodeList());
+          break;
+        case Opcodes.LoadT:
+          sw.Write("call:{0}", DecodeText());
+          break;
+        case Opcodes.CallT:
+          sw.Write("call:{0}", DecodeText());
+          break;
+        case Opcodes.FArgO:
+          sw.Write("arg:{0}", DecodeList());
+          break;
+        case Opcodes.FArgN:
+          sw.Write("arg:{0}", DecodeInt());
+          break;
+        case Opcodes.FArgT:
+          sw.Write("arg:{0}", DecodeText());
           break;
         default:
           throw Error.Evaluation("bad opcode: {0}", opcode);
@@ -167,6 +200,10 @@ namespace PuzzLangLib {
         tw.WriteLine(sw.ToString());
         sw.GetStringBuilder().Length = 0;
       }
+    }
+
+    int DecodeInt() {
+      return _gcode.Code[_gpc++];
     }
 
     string DecodeText() {
@@ -177,12 +214,22 @@ namespace PuzzLangLib {
       return new string(list.ToArray());
     }
 
-    string DecodeSet() {
+    string DecodeList() {
       var len = _gcode.Code[_gpc++];
+      if (len == -99) return String.Format("@frtn");
+      if (len < 0) return String.Format("@v{0}", ~len);
       var list = new List<int>();
       while (len-- > 0)
         list.Add(_gcode.Code[_gpc++]);
-      return String.Format(" {{{0}}}", list.Join());
+      return String.Format("{{{0}}}", list.Join());
+    }
+
+    string DecodeTextList() {
+      var len = _gcode.Code[_gpc++];
+      var list = new List<string>();
+      while (len-- > 0)
+        list.Add(DecodeText());
+      return String.Format("{{{0}}}", list.Join());
     }
   }
 }

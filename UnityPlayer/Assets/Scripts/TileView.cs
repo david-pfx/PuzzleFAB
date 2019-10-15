@@ -21,7 +21,7 @@ public class TileView : MonoBehaviour {
 
   MainController _main { get { return MainController.Instance; } }
   ModelInfo _modelinfo { get { return _main.ModelInfo; } }
-  GameDef _def { get { return _main.GameDef; } }
+  GameModel _model { get { return _modelinfo.Model; } }
 
   // puzzle cell index to display
   // rectangle for hit testing
@@ -55,6 +55,7 @@ public class TileView : MonoBehaviour {
   void Update() {
     switch (_main.GameState) {
     case GameState.Level:
+    case GameState.EndLevel:
       SetSprite();
       SetVisible(true);
       break;
@@ -75,9 +76,9 @@ public class TileView : MonoBehaviour {
 
   // use model to find the object to display, or not
   void SetSprite(bool force = false) {
+    if (!force && !_main.EnableViewUpdate) return;
     var objid = _main.GetObjectId(CellIndex);
-    if (!force && objid == ObjectId) return;
-    var puzzobj = (objid == 0) ? null : _def.GetObject(objid);
+    var puzzobj = (objid == 0) ? null : _model.GetObject(objid);
     _renderer.sprite = _modelinfo.GetSprite(objid);
 
     // Display either text or sprite -- cannot fix render order for both!

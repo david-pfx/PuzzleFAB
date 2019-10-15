@@ -6,7 +6,7 @@ using UnityEngine;
 using DOLE;
 using System.Text.RegularExpressions;
 
-internal enum ScriptKind { None, File, Gist, Asset }
+internal enum ScriptKind { None, File, Gist, Asset, Url }
 
 internal class ScriptInfo {
   internal string Source;     // display showing where it comes from
@@ -35,12 +35,25 @@ internal class ScriptLoader : MonoBehaviour {
     _scriptlookup.Clear();
     foreach (var dir in _main.BuiltinPuzzlesDirectory.Split(','))
       AddAssetScripts(dir);
-    foreach (var dir in _main.UserDirectory.Split(','))
-      AddFileScripts(dir);
-    AddGists(_main.Gists.text);
-    var gistpath = Util.Combine(_main.AppDirectory, _main.GistFile);
-    if (File.Exists(gistpath)) 
-      AddGists(new StreamReader(gistpath).ReadToEnd());
+    foreach (var dir in _main.UserPuzzlesDirectory.Split(','))
+      AddFileScripts(Util.Combine(_main.DataDirectory, dir));
+    if (_main.Gists != null)
+      AddGists(_main.Gists.text);
+    if (_main.GistFile != null) {
+      var gistpath = Util.Combine(_main.DataDirectory, _main.GistFile);
+      if (File.Exists(gistpath))
+        AddGists(new StreamReader(gistpath).ReadToEnd());
+    }
+    var url = Application.absoluteURL == "" ? _main.TestUrl : Application.absoluteURL;
+    if (url != null)
+      AddUrl("startup", url);
+  }
+
+  void AddUrl(string name, string query) {
+    WebAccess webaccess = GetComponent<WebAccess>();
+    var url = webaccess.ExtractQueryUrl(query);
+    if (url != null)
+      AddScript("Url Puzzles", name, ScriptKind.Url, url);
   }
 
   internal void SetScriptValue(string name, string value) {
@@ -61,15 +74,24 @@ internal class ScriptLoader : MonoBehaviour {
   }
 
   // load a script by name for viewing
-  internal string ReadScript(string name, bool reload) {
+  internal string ReadScript(string name, bool reload = false) {
+    if (!FindScript(name, reload)) return null;
+    return _scriptlookup.SafeLookup(name).Value;
+  }
+
+  // find script by name, load if needed, return ok
+  internal bool FindScript(string name, bool reload = false) {
     var script = _scriptlookup.SafeLookup(name);
-    if (script == null) return null;
-    if (!reload && script.Value != "") return script.Value;
-    Util.Trace(2, "Read script {0}", name);
+    if (script == null) return false;
+    if (!reload && script.Value != null) return true;
+    // load/reload
+    Util.Trace(1, "Read script {0}", name);
     if (script.Kind == ScriptKind.Gist)
       ReadGistScript(script);
+    else if (script.Kind == ScriptKind.Url)
+      ReadUrlScript(script);
     else ReadFileScript(script);
-    return _scriptlookup.SafeLookup(name).Value;
+    return true;
   }
 
   // really load a script file
@@ -81,10 +103,16 @@ internal class ScriptLoader : MonoBehaviour {
     }
   }
 
+  // really load a url file -- eventually
+  void ReadUrlScript(ScriptInfo script) {
+    WebAccess webaccess = GetComponent<WebAccess>();
+    webaccess.StartLoadUrl(script.Name, script.Path);
+  }
+
   // really load a gist file -- eventually
   void ReadGistScript(ScriptInfo script) {
     WebAccess webaccess = GetComponent<WebAccess>();
-    webaccess.StartLoadGist(script.Name);
+    webaccess.StartLoadGist(script.Name, script.Path);
   }
 
   // Load games found in a directory
@@ -131,9 +159,16 @@ internal class ScriptLoader : MonoBehaviour {
   }
 
   void AddScript(string source, string name, ScriptKind kind, string path, string value = null) {
-    _scriptlookup[name] = new ScriptInfo {
-      Source = source, Name = name, Kind = kind, Path = path, Value = value
+    var xname = name;
+    var suffix = 0;
+    while (_scriptlookup.ContainsKey(xname))
+      xname = $"{name}-{++suffix}";
+    _scriptlookup[xname] = new ScriptInfo {
+      Source = source,
+      Name = xname,
+      Kind = kind,
+      Path = path,
+      Value = value
     };
   }
-
 }

@@ -1,0 +1,271 @@
+title 333
+author puzzlang
+homepage puzzlang.org
+
+background_color blue
+text_color yellow
+run_rules_on_level_start
+noaction
+========
+OBJECTS
+========
+
+Background .;green;
+edge *;lightblue;
+next n;transparent;   == next tile
+mover M;green;        == player used to record input direction, delete when game over
+empty;lightgrey;      == empty square
+stack s;lightbrown
+bonus u;darkbrown
+bg1;blue;
+bg2;red;
+bg3;white;
+T1;transparent;       == temporary markers
+T2;transparent;
+T3;transparent;
+
+trim #;lightbrown yellow orange red lightblue
+4124
+4014
+4304
+4234
+
+grid;grey;
+0000000000000000
+0..............0
+0..............0
+0..............0
+0..............0
+0..............0
+0..............0
+0..............0
+0..............0
+0..............0
+0..............0
+0..............0
+0..............0
+0..............0
+0..............0
+0000000000000000
+
+1    ;black;message 1
+
+2 0.8;black;message 2
+
+3 0.8;black;message 3
+
+4 0.8;black;message 6
+
+5 0.7;black;message 12
+
+6 0.7;black;message 24
+
+7 0.6;black;message 48
+
+8 0.6;black;message 96
+
+9 0.6;black;message 192
+
+10 0.4;black;message 384
+
+11 0.4;black;message 768
+
+12 0.4;black;message 1536
+
+13 0.4;black;message 3072
+
+15 0.4;black;message 6144
+
+=======
+LEGEND
+=======
+
+number = 1 or 2 or 3 or 4 or 5 or 6 or 7 or 8 or 9 or 10 or 11 or 12 or 13 or 15
+player = number or mover
+bg = bg1 or bg2 or bg3
+x = grid and empty
+
+=======
+SOUNDS
+=======
+
+================
+COLLISIONLAYERS
+================
+Background
+edge stack bonus next mover trim
+bg T1 T2 T3
+empty number 
+grid 
+
+======
+RULES
+======
+
+[ number no stack no next no bonus ] -> [ number grid ]
+
+== initialising - set up tile queue and seeds
+== startloop 3
+random [ stationary M ][ grid empty ] -> [ M ][ 1 ] 
+random [ stationary M ][ grid empty ] -> [ M ][ 1 ] 
+random [ stationary M ][ grid empty ] -> [ M ][ 1 ] 
+random [ stationary M ][ grid empty ] -> [ M ][ 2 ] 
+random [ stationary M ][ grid empty ] -> [ M ][ 2 ] 
+random [ stationary M ][ grid empty ] -> [ M ][ 2 ] 
+random [ stationary M ][ grid empty ] -> [ M ][ 3 ] 
+random [ stationary M ][ grid empty ] -> [ M ][ 3 ] 
+random [ stationary M ][ grid empty ] -> [ M ][ 3 ] 
+
+[ M ] [ S number ] -> [ M T1 ] [ S number ]
+right [ M no T1 ] [ S no number | S no number | S no number ] -> [ M ][ S 1 | S 2 | S 3 ]
+[ T1 ] -> [ T1 ]
+
+== set up bonus TODO:once
+right       [ U | U | U | U | U | U | U | U ] ->       [ U 3 | U   | U   | U   | U   | U   | U   | U   ]
+right [ 7 ] [ U | U | U | U | U | U | U | U ] -> [ 7 ] [ U 3 | U 4 | U   | U   | U   | U   | U   | U   ]
+right [ 8 ] [ U | U | U | U | U | U | U | U ] -> [ 8 ] [ U 3 | U 4 | U 5 | U   | U   | U   | U   | U   ]
+right [ 9 ] [ U | U | U | U | U | U | U | U ] -> [ 9 ] [ U 3 | U 4 | U 5 | U 6 | U   | U   | U   | U   ]
+right [ 10 ] [ U | U | U | U | U | U | U | U ] -> [ 10 ] [ U 3 | U 4 | U 5 | U 6 | U 7 | U   | U   | U   ]
+right [ 11 ] [ U | U | U | U | U | U | U | U ] -> [ 11 ] [ U 3 | U 4 | U 5 | U 6 | U 7 | U 8 | U   | U   ]
+right [ 12 ] [ U | U | U | U | U | U | U | U ] -> [ 12 ] [ U 3 | U 4 | U 5 | U 6 | U 7 | U 8 | U 9 | U   ]
+right [ 13 ] [ U | U | U | U | U | U | U | U ] -> [ 13 ] [ U 3 | U 4 | U 5 | U 6 | U 7 | U 8 | U 9 | U 10 ]
+
+== handle all input moves other than merges
+[ > number stack ] -> [ number stack ]
+[ > number bonus ] -> [ number bonus ]
+[ > number next ] -> [ number next ]
+[ > number | edge ] -> [ number | edge ]
+[ > number | empty ] -> [ empty | number ]
+
+== loop until merge
+startloop
+    == merge moving onto stationary, kill mover
+    == [ > nn:3 | stationary nn ] -> [ empty | !next nn number ]
+    [ > 1 | stationary 2 ] -> [ empty | 3 ]
+    [ > 2 | stationary 1 ] -> [ empty | 3 ]
+    ==TODO: [ > $:num3to13 | stationary $ ] -> [ empty | ?inc $ num3to13 ]
+    [ > 3 | stationary 3 ] -> [ empty | 4 ]
+    [ > 4 | stationary 4 ] -> [ empty | 5 ]
+    [ > 5 | stationary 5 ] -> [ empty | 6 ]
+    [ > 6 | stationary 6 ] -> [ empty | 7 ]
+    [ > 7 | stationary 7 ] -> [ empty | 8 ]
+    [ > 8 | stationary 8 ] -> [ empty | 9 ]
+    [ > 9 | stationary 9 ] -> [ empty | 10 ]
+    [ > 10 | stationary 10 ] -> [ empty | 11 ]
+    [ > 11 | stationary 11 ] -> [ empty | 12 ]
+    [ > 12 | stationary 12 ] -> [ empty | 13 ]
+    [ > 13 | stationary 13 ] -> [ empty | 15 ]
+
+    == numbers won't merge, so kill one mover then loop
+    == once [ > a:number | stationary b:number ] -> [ a | b ]
+    [ > number | stationary number ] -> [ > number | action number ]
+    [ > number | action number ] -> [ number | number ]
+endloop
+
+== scrunch up all the spaces, kill movers
+[ > number | empty ] -> [ empty | number ]
+[ > number ] -> [ number ]
+
+== move next to an available square - leave >M if this fails
+[ > M ] [ edge | empty ] -> [ M T1 ] [ edge | T2 ]
+random [ next number ] [ T2 ] -> [ next ] [ number ]
+[ T1 ] -> [ ]
+[ T2 ] -> [ empty ]
+
+== check for end of game - kill off M if so
+[ empty ] [ M ] -> [ empty ] [ M T1 ]
+[ grid 1 | 2 ] [ M ] -> [ grid 1 | 2 ] [ M T1 ] 
+[ grid 2 | 1 ] [ M ] -> [ grid 2 | 1 ] [ M T1 ] 
+==[ grid $:n3to13 | $ ] [ M ] -> [ grid $ | $ ] [ M T1 ] 
+[ grid 3 | 3 ] [ M ] -> [ grid 3 | 3 ] [ M T1 ] 
+[ grid 4 | 4 ] [ M ] -> [ grid 4 | 4 ] [ M T1 ] 
+[ grid 5 | 5 ] [ M ] -> [ grid 5 | 5 ] [ M T1 ] 
+[ grid 6 | 6 ] [ M ] -> [ grid 6 | 6 ] [ M T1 ] 
+[ grid 7 | 7 ] [ M ] -> [ grid 7 | 7 ] [ M T1 ] 
+[ grid 8 | 8 ] [ M ] -> [ grid 8 | 8 ] [ M T1 ] 
+[ grid 9 | 9 ] [ M ] -> [ grid 9 | 9 ] [ M T1 ] 
+[ grid 10 | 10 ] [ M ] -> [ grid 10 | 10 ] [ M T1 ] 
+[ grid 11 | 11 ] [ M ] -> [ grid 11 | 11 ] [ M T1 ] 
+[ grid 12 | 12 ] [ M ] -> [ grid 12 | 12 ] [ M T1 ] 
+[ grid 13 | 13 ] [ M ] -> [ grid 13 | 13 ] [ M T1 ] 
+[ M no T1 ] [ next ] -> [ M ][ ]
+== status Game over!
+[ M no T1 ] -> [ ] message Game over!
+[ T1 ] -> []
+
+== didn't lose but didn't move so cancel
+[ > M ] -> cancel
+
+== pick a random tile from stack or bonus and move to next
+[ next ] -> [ next T1 ]
+[ T1 ] -> [ random T2 T3 T3 T3 T3 T3 T3 T3 T3 T3 T3 T3 T3 ]
+random [ bonus number ][ next T2 ] -> [ bonus ][ next number ]
+random [ stack number ][ next T3 ] -> [ stack ][ next number ]
+[ T1 ] -> [ ]
+
+== colour the numbers
+[ bg ] -> [ ]
+[ number ] -> [ bg3 number ]
+[ 1 ]      -> [ bg1 1 ]
+[ 2 ]      -> [ bg2 2 ]
+
+==============
+WINCONDITIONS
+==============
+
+some 13
+ 
+=======
+LEVELS
+=======
+
+message Regular 4x4 puzzle
+
+************
+**N*xxxx****
+****xxxx****
+****xxxx****
+**M*xxxx****
+************
+SSSSSSSSSSSS
+UUUUUUUU****
+
+message Test 4x4 puzzle
+
+************
+**N*3xxx****
+****11xx****
+****2x2x****
+**M*3xxx****
+************
+SSSSSSSSSSSS
+UUUUUUUU****
+
+message Full 4x4 puzzle
+
+************
+**N*5455****
+****4544****
+****5455****
+**M*454x****
+************
+SSSSSSSSSSSS
+UUUUUUUU****
+
+message Small 3x3 puzzle
+
+#*****#
+#*xxx*#
+#*xxx*#
+#*xxx*#
+#*****#
+
+message Large 5x5 puzzle
+#*******#
+#*xxxxx*#
+#*xxxxx*#
+#*xxxxx*#
+#*xxxxx*#
+#*xxxxx*#
+#*******#
+

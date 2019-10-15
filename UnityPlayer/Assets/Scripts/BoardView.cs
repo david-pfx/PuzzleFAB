@@ -16,6 +16,8 @@ using UnityEngine;
 using PuzzLangLib;
 
 public class BoardView : MonoBehaviour {
+  public GameObject TilePrefab;
+
   GameModel _model { get { return _main.Model; } }
   MainController _main { get { return MainController.Instance; } }
   Vector2 _boardsize;

@@ -37,7 +37,7 @@ namespace PuzzLangTest {
         },
       };
 
-      DoTests("PRBG", template, tests.GetLength(0), i => tests[i, 1], i => tests[i, 0]);
+      DoExpansionTests("PRBG", template, tests.GetLength(0), i => tests[i, 1], i => tests[i, 0]);
     }
 
     [TestMethod]
@@ -74,7 +74,7 @@ namespace PuzzLangTest {
         },
       };
 
-      DoTests("PRBG", template, tests.GetLength(0), i => tests[i, 1], i => tests[i, 0]);
+      DoExpansionTests("PRBG", template, tests.GetLength(0), i => tests[i, 1], i => tests[i, 0]);
     }
 
     [TestMethod]
@@ -137,7 +137,7 @@ namespace PuzzLangTest {
           "down[ action p | ] -> [ | ]"
         },
       };
-      DoTests("PRBG", template, tests.GetLength(0), i => tests[i, 1], i => tests[i, 0]);
+      DoExpansionTests("PRBG", template, tests.GetLength(0), i => tests[i, 1], i => tests[i, 0]);
     }
 
     [TestMethod]
@@ -199,7 +199,7 @@ namespace PuzzLangTest {
           "down[ right p | right r ]  -> [ | ]",
         },
       };
-      DoTests("PRBG", template, tests.GetLength(0), i => tests[i, 1], i => tests[i, 0]);
+      DoExpansionTests("PRBG", template, tests.GetLength(0), i => tests[i, 1], i => tests[i, 0]);
     }
 
     [TestMethod]
@@ -234,7 +234,7 @@ namespace PuzzLangTest {
         },
       };
 
-      DoTests("PRBG", template, tests.GetLength(0), i => tests[i, 1], i => tests[i, 0]);
+      DoExpansionTests("PRBG", template, tests.GetLength(0), i => tests[i, 1], i => tests[i, 0]);
     }
 
     [TestMethod]
@@ -280,7 +280,7 @@ namespace PuzzLangTest {
         },
       };
 
-      DoTests("PRBG", template, tests.GetLength(0), i => tests[i, 1], i => tests[i, 0]);
+      DoExpansionTests("PRBG", template, tests.GetLength(0), i => tests[i, 1], i => tests[i, 0]);
     }
 
     [TestMethod]
@@ -323,7 +323,7 @@ namespace PuzzLangTest {
         },
       };
 
-      DoTests("PRBG", template, tests.GetLength(0), i => tests[i, 1], i => tests[i, 0]);
+      DoExpansionTests("PRBG", template, tests.GetLength(0), i => tests[i, 1], i => tests[i, 0]);
     }
 
     [TestMethod]
@@ -332,10 +332,10 @@ namespace PuzzLangTest {
       var tests = new string[,] {
       };
 
-      DoTests("PRBG", template, tests.GetLength(0), i => tests[i, 1], i => tests[i, 0]);
+      DoExpansionTests("PRBG", template, tests.GetLength(0), i => tests[i, 1], i => tests[i, 0]);
     }
 
-    void DoTests(string testbase, string template, int count, Func<int,string> expecteds, Func<int, string> actuals, 
+    void DoExpansionTests(string testbase, string template, int count, Func<int,string> expecteds, Func<int, string> actuals, 
       [CallerMemberName] string method = "") {
       for (int i = 0; i < count; i++) {
         var nexp = expecteds(i).Split(';').Length;

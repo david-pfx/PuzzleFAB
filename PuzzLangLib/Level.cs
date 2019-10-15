@@ -39,33 +39,33 @@ namespace PuzzLangLib {
   public class Level {
     public string Name { get; private set; }
     public int Width { get; private set; }
-    public int Length { get { return _locations.GetLength(0); } }
-    public int Height { get { return Length / Width; } }
-    public int Depth { get { return _locations.GetLength(1); } }
+    public int Length { get; private set; }
+    public int Height { get; private set; }
+    public int Depth { get; private set; }
+    //public int Length { get { return _locations.GetLength(0); } }
+    //public int Height { get { return Length / Width; } }
+    //public int Depth { get { return _locations.GetLength(1); } }
     internal int[,] Locations { get { return _locations; } }
-    internal int ChangesCount { get { return _changes.Count; } }
 
     internal int this[int x, int y, int layer] {
       get { return _locations[GetCellIndex(x, y), layer - 1]; }
-      set { SetCell(GetCellIndex(x, y), layer - 1, value); }
+      set { _locations[GetCellIndex(x, y), layer - 1] = value; }
     }
     public int this[int index, int layer] {
       get { return _locations[index, layer - 1]; }
-      set { SetCell(index, layer - 1, value); }
+      set { _locations[index, layer - 1] = value; }
     }
     internal int this[Locator locator] {
       get { return _locations[locator.Index, locator.Layer - 1]; }
-      set { SetCell(locator.Index, locator.Layer - 1, value); }
     }
-    internal int GetCellIndex(int x, int y) {
-      if (!IsCellCoords(x, y)) throw Error.Assert("out of range");
+    int GetCellIndex(int x, int y) {
+      //if (!IsCellCoords(x, y)) throw Error.Assert("out of range");
       return y * Width + x;
     }
-    internal bool IsCellCoords(int x, int y) {
+    bool IsCellCoords(int x, int y) {
       return x >= 0 && x < Width && y >= 0 && y < Height;
     }
 
-    internal Dictionary<Locator, int> _changes = new Dictionary<Locator, int>();
     int[,] _locations;
 
     // lookup increment for x, y
@@ -80,8 +80,11 @@ namespace PuzzLangLib {
     static internal Level Create(int x, int y, int z, string name) {
       return new Level {
         Name = name,
-        _locations = new int[x * y, z],
         Width = x,
+        Height = y,
+        Depth = z,
+        Length = x * y,
+        _locations = new int[x * y, z],
       };
     }
 
@@ -91,6 +94,9 @@ namespace PuzzLangLib {
         Name = name ?? Name,
         _locations = _locations.Clone() as int[,],
         Width = Width,
+        Height = Height,
+        Depth = Depth,
+        Length = Length,
       };
     }
 
@@ -103,28 +109,12 @@ namespace PuzzLangLib {
 
     // Try to step a level index by a direction
     internal int? Step(int cellindex, Direction direction) {
-      if (!GameDef.MoveDirections.Contains(direction)) throw Error.Assert("dir: {0}", direction);
+      //if (!GameDef.MoveDirections.Contains(direction)) throw Error.Assert("dir: {0}", direction);
       if (!_steplookup.ContainsKey(direction)) return cellindex;
       var x = cellindex % Width + _steplookup[direction].Item1;
       var y = cellindex / Width + _steplookup[direction].Item2;
       if (!IsCellCoords(x, y)) return null;
       return GetCellIndex(x, y);
-    }
-
-    // update contents, keeping a record of change location and initial content
-    void SetCell(int index, int z, int value) {
-      Logger.WriteLine(4, "Setcell {0}:{1}={2} cc={3}", index, z, value, ChangesCount);
-      if (_locations[index, z] != value) {
-        var locator = Locator.Create(index, z + 1);
-        // if location already known, either ignore or delete (back the way it was)
-        // otherwise add a new change
-        if (_changes.ContainsKey(locator)) {
-          if (_changes[locator] == value)
-            _changes.Remove(locator);
-        } else
-          _changes[locator] = _locations[index, z];
-        _locations[index, z] = value;
-      }
     }
   }
 }

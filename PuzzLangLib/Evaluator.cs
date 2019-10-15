@@ -25,20 +25,22 @@ namespace PuzzLangLib {
   /// </summary>
   internal class Evaluator {
     internal TextWriter Output { get; private set; }
+    GameDef _gamedef;
 
     //-- creation
-    internal static Evaluator Create(TextWriter output) {
+    internal static Evaluator Create(GameDef gamedef, TextWriter output) {
       return new Evaluator() {
         Output = output,
+        _gamedef = gamedef,
       };
     }
 
     // Entry point from with instance
-    internal bool Exec(CompiledRule rule, RuleCode code, RuleState rulestate) {
-      Logger.WriteLine(5, "Exec rule {0}: {1}", rule.RuleId, rulestate);
-
+    internal bool Exec(RuleCode code, RuleState rulestate) {
       var scope = new EvaluationScope {
-        RuleCode = code, State = rulestate,
+        RuleCode = code,
+        State = rulestate,
+        Script = _gamedef.Scripts.CreateEval(),
       };
       return scope.Run();
     }
@@ -52,6 +54,7 @@ namespace PuzzLangLib {
 
     internal RuleCode RuleCode { get; set; }
     internal RuleState State { get; set; }
+    internal ScriptEval Script { get; set; }
     StringWriter _sw;
 
     // return value
@@ -83,28 +86,53 @@ namespace PuzzLangLib {
       return ret;
     }
 
-    RuleCommand GetCmd() {
-      var ret = (RuleCommand)RuleCode.Code[_gpc++];
+    CommandName GetCmd() {
+      var ret = (CommandName)RuleCode.Code[_gpc++];
       if (_logging) _sw.Write("{0} ", ret);
       return ret;
     }
 
-    HashSet<int> GetSet() {   // .NET 3.5
-      var len = RuleCode.Code[_gpc++];
-      var set = new HashSet<int>();
-      while (len-- > 0)
-        set.Add(RuleCode.Code[_gpc++]);
-      if (_logging) _sw.Write("{0} ", set.Join());
-      return set;
+    HashSet<int> GetSet() {
+      return new HashSet<int>(GetList());   // TODO: optimise?
+      //var len = RuleCode.Code[_gpc++];
+      //var set = new HashSet<int>();
+      //while (len-- > 0)
+      //  set.Add(RuleCode.Code[_gpc++]);
+      //if (_logging) _sw.Write("{0} ", set.Join());
+      //return set;
     }
 
-    private string GetText() {
+    IList<int> GetList() {
       var len = RuleCode.Code[_gpc++];
-      var array = new char[len];
-      for (int i = 0; i < len; i++)
-        array[i] = (char)RuleCode.Code[_gpc++];
-      if (_logging) _sw.Write("'{0}' ", new string(array));
-      return new string(array);
+      var list = (len == -99) ? Script.GetResultList()
+        : (len < 0) ? State.GetRefObject(~len)
+        : new List<int>();
+      while (len-- > 0)
+        list.Add(RuleCode.Code[_gpc++]);
+      if (_logging) _sw.Write("{0} ", list.Join());
+      return list;
+    }
+
+    private string GetString() {
+      var len = RuleCode.Code[_gpc++];
+      var rets = (len == -99) ? Script.GetResult("") : "";
+      if (len > 0) {
+        var array = new char[len];
+        for (int i = 0; i < len; i++)
+          array[i] = (char)RuleCode.Code[_gpc++];
+        rets = new string(array);
+      }
+      if (_logging) _sw.Write("'{0}' ", rets);
+      return rets;
+    }
+
+    IList<string> GetArgs() {
+      var len = RuleCode.Code[_gpc++];
+      var args = new List<string>();
+      while (len-- > 0)
+        args.Add(GetString());
+      if (_logging) _sw.Write("{0} ", args.Join());
+      return args;
     }
 
     // Evaluation engine for gencode
@@ -126,32 +154,23 @@ namespace PuzzLangLib {
         case Opcodes.TrailX:
           _break = State.OpTrailX(GetInt());
           break;
-        case Opcodes.FindO:
-          _break = State.OpFindO(GetSet(), GetOper());
-          break;
         case Opcodes.FindOM:
           _break = State.OpFindOM(GetSet(), GetDir(), GetOper());
-          break;
-        case Opcodes.TestON:
-          _break = State.OpTestON(GetSet(), GetOper());
           break;
         case Opcodes.TestOMN:
           _break = State.OpTestOMN(GetSet(), GetDir(), GetOper());
           break;
-        case Opcodes.ScanODN:
-          _break = State.OpScanODN(GetSet(), GetDir(), GetOper());
+        case Opcodes.TestXMN:
+          _break = State.OpTestXMN(GetInt(), GetDir(), GetOper());
           break;
         case Opcodes.ScanOMDN:
           _break = State.OpScanOMDN(GetSet(), GetDir(), GetDir(), GetOper());
-          break;
-        case Opcodes.CheckON:
-          _break = State.OpCheckON(GetSet(), GetOper());
           break;
         case Opcodes.CheckOMN:
           _break = State.OpCheckOMN(GetSet(), GetDir(), GetOper());
           break;
         case Opcodes.CreateO:
-          _break = State.OpCreateO(GetSet(), GetDir());
+          _break = State.OpCreateO(GetList(), GetDir());
           break;
         case Opcodes.DestroyO:
           _break = State.OpDestroyO(GetSet());
@@ -159,14 +178,36 @@ namespace PuzzLangLib {
         case Opcodes.MoveOM:
           _break = State.OpMoveOM(GetSet(), GetDir());
           break;
+        case Opcodes.StoreXO:
+          _break = State.OpStoreXO(GetInt(), GetSet());
+          break;
         case Opcodes.CommandC:
-          _break = State.OpCommandC(GetCmd());
+          _break = State.OpCommandCSO(GetCmd(), null, 0);
           break;
-        case Opcodes.MessageT:
-          _break = State.OpMessageT(GetText());
+        case Opcodes.CommandCS:
+          _break = State.OpCommandCSO(GetCmd(), GetString(), 0);
           break;
-        case Opcodes.SoundT:
-          _break = State.OpSoundT(GetText());
+        case Opcodes.CommandCSO:
+          _break = State.OpCommandCSO(GetCmd(), GetString(), GetSet().First());
+          break;
+        case Opcodes.LoadT:
+          Script.OpLoadT(GetString());
+          break;
+        case Opcodes.CallT:
+          Script.OpCallT(GetString());
+          break;
+        case Opcodes.FArgO:
+          Script.OpFArgO(GetList());
+          break;
+        case Opcodes.FArgN:
+          Script.OpFArgN(GetInt());
+          break;
+        case Opcodes.FArgT:
+          Script.OpFArgT(GetString());
+          break;
+        case Opcodes.TestR:
+          _break = !State.OpTestR(Script.GetResult());
+          //_break = !Script.GetResult();
           break;
         case Opcodes.NOP:
           break;
@@ -218,6 +259,5 @@ namespace PuzzLangLib {
       if (_logging) Logger.WriteLine(LogEval, "[Run ret={0}]", _break);
       return _break;
     }
-
   }
 }

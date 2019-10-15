@@ -104,9 +104,11 @@ namespace DOLE {
       Write(level, "", true);
     }
     public static void Write(int level, string format, params object[] args) {
+      if (level > Level) return;
       Write(level, String.Format(format, args), false);
     }
     public static void WriteLine(int level, string format, params object[] args) {
+      if (level > Level) return;
       Write(level, String.Format(format, args), true);
     }
     public static void WriteLine(string format, params object[] args) {

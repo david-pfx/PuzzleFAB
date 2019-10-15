@@ -17,7 +17,7 @@ using DOLE;
 
 namespace PuzzLangLib {
   class SettingsParser {
-    internal GameDef Game { get; set; }
+    internal GameDef GameDef { get; set; }
     internal ColourParser Colour { get; set; }
 
     Dictionary<OptionSetting, Func<SettingsParser, OptionSetting, string, bool>> _settinglookup = 
@@ -60,34 +60,34 @@ namespace PuzzLangLib {
     }
 
     bool ParseAny(OptionSetting setting, string value) {
-      Game.StringSettings[setting] = value;
+      GameDef.StringSettings[setting] = value;
       return true;
     }
     bool ParseBool(OptionSetting setting, string value) {
-      Game.BoolSettings[setting] = value.SafeBoolParse() ?? true;
+      GameDef.BoolSettings[setting] = value.SafeBoolParse() ?? true;
       return true;
     }
     bool ParseNumber(OptionSetting setting, string value) {
       var v = value.SafeDoubleParse() ?? 0;
-      Game.NumberSettings[setting] = (float)v;
+      GameDef.NumberSettings[setting] = (float)v;
       return v >= 0;
     }
     bool ParseWxH(OptionSetting setting, string value) {
       var s = value.ToUpper().Split('X');
       if (s.Length != 2) return false;
-      Game.PairSettings[setting] = Pair.Create(s[0].SafeIntParse() ?? 0, s[1].SafeIntParse() ?? 0);
+      GameDef.PairSettings[setting] = Pair.Create(s[0].SafeIntParse() ?? 0, s[1].SafeIntParse() ?? 0);
       return true;
     }
     bool ParsePalette(OptionSetting setting, string value) {
       if (Colour.SetPalette(value)) {
-        Game.Palette = Colour.GetPalette();
+        GameDef.Palette = Colour.GetPalette();
         return true;
       }
       return false;
     }
     bool ParseColour(OptionSetting setting, string value) {
       if (!Colour.IsColour(value)) return false;
-      Game.IntSettings[setting] = Colour.ParseColour(value);
+      GameDef.IntSettings[setting] = Colour.ParseColour(value);
       return true;
     }
 

@@ -20,9 +20,13 @@ namespace PuzzLangLib {
 
   internal class TreeNode : Tree<TreeNode> {
     // location index in layer
-    public int Location { get; set; }
+    internal int Location { get; private set; }
     // order to use for sorting
     //public int Order { get; set; }
+    // lookup for references within this tree
+    internal Dictionary<int,IList<int>> Refs { get; private set; }
+
+    internal TreeNode Parent { get { return _parent; } }
 
     public override string ToString() {
       var locations = new List<int>();
@@ -31,10 +35,34 @@ namespace PuzzLangLib {
       return $"Trail<{locations.Join()}>";
     }
 
-    public static TreeNode Create(int location) {
-      return new TreeNode { Location = location };
+    internal static TreeNode Create(int location, Dictionary<int,IList<int>> refs = null) {
+      return new TreeNode {
+        Location = location,
+        Refs = refs,
+      };
     }
-    public TreeNode Parent { get { return _parent; } }
+
+    // set reference to object
+    // inherit parent lookup, but can only add to lookup in this node
+    internal void SetRef(int index, IList<int> value) {
+      Logger.WriteLine(4, "Setref node {0} {1} = {{{2}}}", Location, index, value.Join());
+      if (Refs == null) {
+        var refs = FindRefs();
+        Refs = (refs == null) ? new Dictionary<int, IList<int>>() : new Dictionary<int, IList<int>>(refs);
+      }
+      Refs.Add(index, value);
+    }
+
+    // get objectd given reference
+    internal IList<int> GetRef(int index) {
+      return FindRefs()[index];
+    }
+
+    internal Dictionary<int,IList<int>> FindRefs() {
+      for (var node = this; node != null ; node = node.Parent)
+        if (node.Refs != null) return node.Refs;
+      return null;
+    }
   }
 
   /// <summary>
@@ -43,7 +71,7 @@ namespace PuzzLangLib {
   /// </summary>
   internal class Trail {
     internal bool IsEmpty { get { return _tree.IsEmpty; } }
-    internal List<List<int>> Paths { get { return _paths; } }
+    internal List<IList<int>> Paths { get { return _paths; } }
     internal IList<int> Current { get { return _pathsindex >= 0 ? _paths[_pathsindex] : null; } }
     public int NodeCount { get { return _nodecount; } }
 
@@ -52,14 +80,14 @@ namespace PuzzLangLib {
     }
 
     TreeNode _tree = new TreeNode();
-    List<List<int>> _paths = new List<List<int>>();
+    List<IList<int>> _paths = new List<IList<int>>();
     int _pathsindex = -1;
     int _nodecount = 0;
 
-    internal void Add(TreeNode child, int value) {
+    internal void Add(TreeNode parent, int value) {
       Logger.WriteLine(4, "Add node {0} to {1}", value, _nodecount);
       _nodecount++;
-      (child ?? _tree).AddChild(TreeNode.Create(value));
+      (parent ?? _tree).AddChild(TreeNode.Create(value));
     }
 
     internal void Remove(TreeNode child) {
@@ -81,23 +109,23 @@ namespace PuzzLangLib {
       return list;
     }
 
-    internal void Prepare() {
-      var paths = new List<List<int>>();
+    internal IList<RuleMatch> GetMatches(CompiledRule rule) {
+      var matches = new List<RuleMatch>();
       if (!IsEmpty) {
         foreach (var node in GetLeaves()) {
-          paths.Add(node.GetPath()
+          var refs = node.FindRefs();
+          var path = node.GetPath()
             .Skip(1)      // always a zero in the first node
-            .Select(n => n.Location).ToList());
+            .Select(n => n.Location).ToList();
+          matches.Add(new RuleMatch {
+            rule = rule,
+            path = path,
+            refs = refs });
         }
-        if (paths.Count == 0) throw Error.Assert("no paths");
-        if (paths.Count >= 2 && paths.Any(p => p.Count != paths[0].Count)) throw Error.Assert("unequal paths");
+        if (matches.Count == 0) throw Error.Assert("no paths");
+        //if (matches.Count >= 2 &&  paths.Any(p => p.Count != paths[0].Count)) throw Error.Assert("unequal paths");
       }
-      // CHECK: assumes generation order is as desired without sorting
-      _paths = paths;
-      //_paths = paths
-      //  .OrderBy(p => p)
-      //  .ThenBy(p => p[0]).ToList();
-      _pathsindex = -1;
+      return matches;
     }
 
     private object PathLength(List<int> p) {

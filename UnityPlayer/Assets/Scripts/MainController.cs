@@ -16,14 +16,17 @@ using UnityEngine.Assertions;
 using PuzzLangLib;
 using DOLE;
 using System.IO;
+using System.Collections;
 
 // very important state that drives the entire UI
 public enum GameState {
   None,
-  Select, Intro, Pause, Quit,
-  Error, Level, Message, GameOver,
-  Status,
+  Select, Error, Wait, Info,
+  Intro, Pause, Quit,
+  Level, EndLevel, Message, GameOver,
 }
+
+public enum ReloadMode { Start, Index, Script }
 
 /// <summary>
 /// Implements main functions for getting started, loading and running games
@@ -31,33 +34,39 @@ public enum GameState {
 /// </summary>
 public class MainController : MonoBehaviour {
   // settings
+  public string Version;
+  public string UserPuzzlesDirectory = "Games";
+  public string BuiltinPuzzlesDirectory = "Puzzles";
+  public string StartupScript = "yasban";
+  public TextAsset Gists;
+  public string GistFile = "Gists.txt";
+  public float AgainInterval = 0.25f;
+  public float EndInterval = 0.50f;
+  public float RealtimeInterval = 0.25f;
+  public float BoardScale = 0.90f;
+  public float SplashTime = 1.0f;
+  public Color BackgroundColour = Color.yellow;
+  public Color ForegroundColour = Color.blue;
   public GameObject BoardPrefab;
   public GameObject TilePrefab;
   public AudioSource AudioSource;
   public AudioClip DefaultSound;
-  public string UserPuzzlesDirectory = "Games";
-  public string BuiltinPuzzlesDirectory = "Puzzles";
-  public TextAsset Gists;
-  public string GistFile = "Gists.txt";
-  public string StartupScript;
-  public Color BackgroundColour = Color.yellow;
-  public Color ForegroundColour = Color.blue;
-  public float AgainInterval = 0.25f;
-  public float RealtimeInterval = 0.25f;
-  public float BoardScale = 0.90f;
   public bool VerboseLogging = false;
-  public int Noisy = 2;
+  public int Noisy;
+  public string TestUrl;
 
   internal static MainController Instance { get; private set; }
   internal GameState GameState { get; set; }
-  internal string Message { get; private set; }
   internal GameModel Model { get { return _modelinfo.Model; } }
   internal ModelInfo ModelInfo { get { return _modelinfo; } }
   internal GameDef GameDef { get { return _modelinfo.Model.GameDef; } }
   internal BoardView Board { get { return _boardview; } }
   internal ScriptLoader ScriptLoader { get; private set; }
-  internal string AppDirectory { get; private set; }
-  internal string UserDirectory { get; private set; }
+  internal string DataDirectory { get; private set; }
+  internal string Title { get; private set; }   // for display
+  internal string Message { get; private set; }  // for display
+  internal string Status { get; private set; }   // for display
+  internal bool EnableViewUpdate { get; set; }   // when true, need to update display
 
   UiManager _uimx;
   ModelInfo _modelinfo;
@@ -68,33 +77,57 @@ public class MainController : MonoBehaviour {
 
   void Awake() {
     Instance = this;
+    //Assert.raiseExceptions = true;
+    EnableViewUpdate = true;
+    // setting during testing
+#if UNITY_EDITOR
+    UserPuzzlesDirectory += ",test puzzles,test puzzles/demo,test puzzles/buggy";
+    //TestUrl = @"xx.com?u=http://david-pfx.github.io/PuzzlangWeb/Puzzles/New/2048.txt";
+    //TestUrl = @"http://david-pfx.github.io/PuzzlangWeb/index.html?p=Puzzles/New/2048.txt";
+    //TestUrl = @"xx.com?w=New/2048.txt";
+    //VerboseLogging = true;
+    //Noisy = 2;
+#endif
     Util.MaxLoggingLevel = Noisy;
-    Assert.raiseExceptions = true;
+    //Version = "1.0.beta.{0:D2}{1}{2:D2}".Fmt(DateTime.Now.Year % 100, (char)('a' + DateTime.Now.Month - 1), DateTime.Now.Day);
   }
 
-  void Start() {
+void Start() {
     Util.Trace(1, "Main start '{0}'", Noisy);
     _uimx = FindObjectOfType<UiManager>();
     ScriptLoader = FindObjectOfType<ScriptLoader>();
-    AppDirectory = Path.GetDirectoryName(Application.dataPath);
-    UserDirectory = Util.Combine(AppDirectory, UserPuzzlesDirectory);
+    DataDirectory = Path.GetDirectoryName(Application.dataPath);
     ScriptLoader.Setup();
-    GameState = LoadScript(StartupScript);
+    var newstate = ScriptLoader.FindScript("startup") ? LoadScript("startup") : LoadScript(StartupScript);
+    StartCoroutine(ShowSplash(SplashTime, newstate));
+  }
+
+  IEnumerator ShowSplash(float time, GameState newstate) {
+    GameState = GameState.None;
+    yield return new WaitForSeconds(time);
+    GameState = newstate;
   }
 
   // update our state
   void Update() {
     switch (GameState) {
+    case GameState.Wait:
+      if (ScriptLoader.ReadScript(_scriptname) != null)
+        GameState = TryCompile(_scriptname);
+      break;
     case GameState.Intro:
       break;
     case GameState.Level:
       if (_board == null) CreateBoard();
       break;
-    case GameState.Status:
-      _uimx.MessageText.text = GetStatusInfo();
+    case GameState.EndLevel:
+      Message = "You win!";
+      break;
+    case GameState.Info:
+      Message = GetStatusInfo();
       break;
     case GameState.GameOver: // todo: end level
-      if (_board != null) DestroyBoard();
+      DestroyBoard();
       break;
     case GameState.Quit:
       Application.Quit();
@@ -106,23 +139,17 @@ public class MainController : MonoBehaviour {
   }
 
   internal string GetStatusInfo() {
-    return "data={0}\napp={1}\nuser={2}\nurl={3}"
-      .Fmt(Application.dataPath, AppDirectory, UserDirectory, Application.absoluteURL);
+    return "data={0}\npersist={1}\nurl={2}"
+      .Fmt(Application.dataPath, Application.persistentDataPath, Application.absoluteURL);
   }
 
-  // accessed on startup or when new script selected
-  internal GameState LoadScript(string scriptname = null) {
-    if (scriptname == null) {
-      scriptname = _scriptname;
-      ScriptLoader.ReadScript(scriptname, true);
-    } else _scriptname = scriptname;
-    Util.Trace(1, "Load script '{0}'", scriptname);
-    if (_uimx != null) {
-      _uimx.TitleText.text = scriptname;
-      _uimx.MessageText.text = "";
-      _uimx.StatusText.text = "Loading...";
-    }
-    return TryCompile(scriptname) ? GameState.Intro : GameState.Error;
+  // load and compile script if possible, without or without reload, setting State
+  internal GameState LoadScript(string scriptname, bool reload = false) {
+    if (scriptname != null) _scriptname = scriptname;
+    Util.Trace(1, "Load script '{0}'", _scriptname);
+    Title = _scriptname;
+    Message = "Please wait...";
+    return ScriptLoader.FindScript(_scriptname, reload) ? GameState.Wait : GameState.Error;
   }
 
   // access by tile view -- must guard against level change
@@ -140,9 +167,10 @@ public class MainController : MonoBehaviour {
     }
   }
 
-  internal GameState RestartScript(bool useindex) {
+  internal GameState RestartScript(ReloadMode mode) {
     DestroyBoard();
-    var newindex = useindex ? _uimx.RestartLevelIndex : 0;
+    if (mode == ReloadMode.Script) return LoadScript(null, true);
+    var newindex = (mode == ReloadMode.Index) ? _uimx.RestartLevelIndex : 0;
     AcceptInput("level {0}".Fmt(newindex));
     return (newindex == 0) ? GameState.Intro : GameState.Level;
   }
@@ -156,6 +184,8 @@ public class MainController : MonoBehaviour {
   internal void AcceptInput(string input) {
     _modelinfo.AcceptInput(input);
     Message = Model.CurrentMessage;
+    Status = Model.Status ?? "Level {0}".Fmt(Model.CurrentLevelIndex);
+
     PlaySounds(Model.Sounds);
   }
 
@@ -167,19 +197,20 @@ public class MainController : MonoBehaviour {
 
   //--- impl
 
-  bool TryCompile(string name) {
-    bool ok = false;
+  GameState TryCompile(string name) {
     DestroyBoard();
     _modelinfo = new ModelInfo();
-    var script = ScriptLoader.ReadScript(name, false);
-    if (script == null) Message = "Not yet loaded...";
-    else if (!_modelinfo.Compile(name, script))
-      Message = _modelinfo.Message;
+    Title = name;
+    var script = ScriptLoader.ReadScript(name);
+    if (script == null) Message = "Script not loaded";
+    else if (script.StartsWith("Error")) Message = script;
+    else if (!_modelinfo.Compile(name, script)) Message = _modelinfo.Message;
     else {
+      Title = GameDef.GetSetting(OptionSetting.title, "unknown");
       AcceptInput("level 0");
-      ok = true;
+      return GameState.Intro;
     }
-    return ok;
+    return GameState.Error;
   }
 
   // create a new board, destroy old first

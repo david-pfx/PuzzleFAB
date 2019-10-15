@@ -33,16 +33,18 @@ namespace PuzzLangMain {
     static string _jctest = null; // converted files from this directory
     static string _gist = null;
     static string _gconvert = null;
-    static int _take = 9999;
     static bool _jtarray = false;
     static bool _jtsingle = false;
-    static bool _static = false;
-    static string _xpath = null;
     static List<Pair<string, string>> _settings = new List<Pair<string, string>>();
     static Encoding _encoding = Encoding.UTF8;
-    static bool _timing;
     //static string _skip = "";    // default unless overridden
     static string _skip = "62,32";    // default unless overridden
+    static bool _static = false;
+    static int _take = 9999;
+    static bool _timing;
+    private static string _urllink;
+    private static string _urlquery;
+    static string _xpath = null;
     static bool _xdebug = false;
 
     static readonly Dictionary<string, Action<string>> _options
@@ -65,6 +67,8 @@ namespace PuzzLangMain {
         { "static",   (a) => { _static = true; } },
         { "take",     (a) => { _take = a.SafeIntParse() ?? 9999; } },
         { "timing",   (a) => {  _timing = true; _settings.Add(Pair.Create("statistics_logging","true")); } },
+        { "urlpath",  (a) => { _urllink = a; } },
+        { "urlquery", (a) => { _urlquery = a; } },
         { "verbose",  (a) => { _settings.Add(Pair.Create("verbose_logging","true")); } },
         { "xdebug",   (a) => { _xdebug = true; } },
       };
@@ -79,12 +83,22 @@ namespace PuzzLangMain {
 
       // trigger options here to avoid having to change debug conditions
       if (_xdebug) {
+        //options.Parse(new string[] { @"..\UnityPlayer\Test Puzzles\ascripttest.txt", "/2", "/input=right" });
+        options.Parse(new string[] { "/33", "/input=right" });
+        //options.Parse(new string[] { @"..\UnityPlayer\Puzzles\new\2048.txt", "/2", "/input=level 3,left" });
+        //options.Parse(new string[] { @"..\UnityPlayer\puzzles\New\333.txt", "/2", "/input=tick" });
+        //options.Parse(new string[] { @"..\UnityPlayer\puzzles\New\fifteen.txt", "/2", "/input=fire1 28" });
+        //options.Parse(new string[] { @".\demo\threes.txt", "/0", "/input=up,down,left,right", "/endl" });
+        //options.Parse(new string[] { "/jta", "testdata.json", "/f=collapse simple", "/0" });
+        //options.Parse(new string[] { "/3" });
+        //options.Parse(new string[] { @"..\UnityPlayer\\Assets\Resources\Puzzles\yasban.txt", "/2", });
+        //options.Parse(new string[] { @"..\UnityPlayer\Test Puzzles\Buggy\threes.txt", "/3", });
+        //options.Parse(new string[] { @"..\UnityPlayer\Puzzles\new\colour wheel.txt", "/3", });
+        //options.Parse(new string[] { @"..\UnityPlayer\Puzzles\new\loops_of_zen.txt", "/3", "/level=1", "/input=init" });
         //options.Parse(new string[] { @".\jsonconvert\085-Sok7.txt", "/2" });
-        options.Parse(new string[] { "/2" });
         //options.Parse(new string[] { "/3", "/input=action,right,right,left,right" });
 
         //options.Parse(new string[] { @".\test puzzles\basicloop.txt", "/502", "/input=right" });
-        //options.Parse(new string[] { @"..\UnityPlayer\Test Puzzles\new\2048.txt", "/3", "/input=right" });
         //options.Parse(new string[] { @".\test puzzles\rigid.txt", "/502", "/input=right,right,right,down,right" });
         //options.Parse(new string[] { @".\test puzzles\laserblock.txt", "/3", "/input=right" });
         //options.Parse(new string[] { @"..\UnityPlayer\Assets\Resources\New Puzzles\loops_of_zen.txt", "/3", "/input=fire1 12" });
@@ -151,6 +165,10 @@ namespace PuzzLangMain {
             RunJsonConvTest(file);
       } else if (_gist != null) {
         RunGist(_gist);
+      } else if (_urllink != null) {
+        RunUrlLink(_urllink);
+      } else if (_urlquery != null) {
+        RunUrlQuery(_urlquery);
       } else if (_gconvert != null) {
         foreach (var filename in options.GetPathnames(_xpath ?? "gists.txt")
           .Where(p => p.ToLower().Contains(_filter)))
@@ -201,16 +219,40 @@ namespace PuzzLangMain {
     }
 
     static void RunGist(string gist) {
-      var gistid = GistAccess.ExtractGist(gist);
+      var gistid = NetAccess.ExtractGist(gist);
       if (gistid == null)
         _output.WriteLine("*** invalid gist id: '{0}'", gist);
       else {
         _output.WriteLine("Loading gist: '{0}'", gistid);
-        var script = GistAccess.Load(gistid);
+        var script = NetAccess.LoadGist(gistid);
         if (script == null)
           _output.WriteLine("*** gist not found: '{0}'", gist);
         else RunScript($"Gist: {_gist}", script, _inputs, _startlevel);
       }
+    }
+
+    // load a script directly from a URL
+    static void RunUrlLink(string url) {
+      var script = NetAccess.LoadUrlScript(url);
+      if (script == null)
+        _output.WriteLine("*** invalid url path: '{0}'", url);
+      else {
+        _output.WriteLine("Loading: '{0}'", script);
+        RunScript(url, script, _inputs, _startlevel);
+      }
+    }
+
+    // load a script via URL query parameters
+    static void RunUrlQuery(string url) {
+      var args = NetAccess.ExtractUrlParameters(url);
+      if (args.ContainsKey("u")) {          // url
+        RunUrlLink(args["u"]);
+      } else if (args.ContainsKey("w")) {   // web site
+        RunUrlLink(@"https://david-pfx.github.io/PuzzlangWeb/Puzzles/" + args["w"]);
+      } else if (args.ContainsKey("p")) {   // local path
+        _output.WriteLine("Loading: '{0}'", args["p"]);
+        RunScript(args["p"], ReadFile(args["p"]), _inputs, _startlevel);
+      } else _output.WriteLine("*** invalid url query: '{0}'", url);
     }
 
     static void RunGistConvert(string listname, string dir) {
@@ -218,11 +260,11 @@ namespace PuzzLangMain {
       if (!Directory.Exists(dir))
         Directory.CreateDirectory(dir);
       foreach (var line in ReadLines(ReadFile(listname))) {
-        var gistid = GistAccess.ExtractGist(line);
+        var gistid = NetAccess.ExtractGist(line);
         if (gistid == null)
           _output.WriteLine("*** invalid gist id: '{0}'", line);
         else {
-          var script = GistAccess.Load(gistid);
+          var script = NetAccess.LoadGist(gistid);
           var outpath = Path.Combine(dir, gistid + ".txt");
           using (var sw = new StreamWriter(outpath))
             sw.Write(script);

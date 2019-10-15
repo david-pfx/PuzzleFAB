@@ -80,6 +80,7 @@ namespace DOLE {
             filelist.Add(file);
         } else {
           var dir = Path.GetDirectoryName(path);
+          if (!Directory.Exists(dir)) throw Error.Fatal($"no such directory(s): '{dir}'");
           if (dir == "") dir = @".\";
           var files = Directory.GetFiles(dir, Path.GetFileName(path));
           if (files.Length == 0) throw Error.Fatal($"no such file(s): '{path}'");

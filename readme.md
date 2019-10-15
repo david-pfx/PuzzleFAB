@@ -57,10 +57,11 @@ This contains a selection of user-created games known to work with Puzzlang, but
 ## The developer way 
 
 1. Install [Visual Studio](https://www.visualstudio.com/downloads/).
-Any recent version should do, but the project is for VS 2015.
+Any recent version should do, but the project is for VS 2019.
+The free version should work fine.
 
 1. Install [Unity](https://unity3d.com/get-unity/download/archive/).
-Any recent version should do, but the project was built with Version 2017.3. 
+Any recent version should do, but the project was built with Version 2019.2. 
 The free version is fine.
 
 1. Download the Puzzlang project and unzip it somwhere. 
@@ -82,7 +83,7 @@ Select or skip a level.
 1. Build a standalone player for a platform of your choice, and run that.
 Enjoy.
 
-1. Add your own games. Just drop the text file into the Games directory.
+1. Add your own games. Just drop the text file into the 'Other Games/User' directory.
 
 1. Build a standalone player with your game and give it to someone else to enjoy.
 
@@ -121,17 +122,23 @@ The following enhancements are implemented so far.
 
 1. Objects can have text sprites, either a single character or a string.
 
-1. Setting **pause_at_end_level** makes the engine wait for an extra input at the end of each level. The player uses this.
+1. Setting **pause_at_end_level** makes the engine wait for an extra input at the end of each level. The player implements this.
 
-1. Setting **pause_on_again** makes the engine wait for an extra input when processing an again loop. The player uses this.
+1. Setting **pause_on_again** makes the engine wait for an extra input when processing an again loop. The player implements this.
 
-1. Object sprites can be any pixel size, not just 5x5. Support for named images is planned.
+1. Object sprites can be any pixel size, not just 5x5. The minimum is 2x2. Support for named images is planned.
 
 1. Commands for **undo** and **reset** (start over, disarding any checkpoint).
 
 1. There is an input for **reset**, not bound to any key but used in testing.
 
 1. The player allows Pause, Reset, Quit, Restart from a chosen level and Select a game from multiple pages including gists.
+
+1. Additional input event Reaction, similar to Action but not bound to a key.
+
+1. Commands **level**, **status**, **text**, **call** (see sample programs)
+
+1. Scripts written in Lua (partially implemented).
 
 The Future
 ----------

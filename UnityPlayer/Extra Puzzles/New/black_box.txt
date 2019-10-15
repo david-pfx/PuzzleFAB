@@ -1,0 +1,186 @@
+title Black Box
+author puzzlang
+homepage puzzlang.org
+
+background_color lightbrown
+text_color darkblue
+hover
+run_rules_on_level_start
+
+========
+OBJECTS
+========
+Background .
+lightblue
+
+edge *
+lightgreen
+
+lit
+yellow
+
+noball
+transparent
+
+done
+black
+message ?
+
+focus (for hover)
+lightgrey
+000000000000
+0..........0
+0..........0
+0..........0
+0..........0
+0..........0
+0..........0
+0..........0
+0..........0
+0..........0
+0..........0
+000000000000
+
+grid
+darkgrey
+000000000000
+0..........0
+0..........0
+0..........0
+0..........0
+0..........0
+0..........0
+0..........0
+0..........0
+0..........0
+0..........0
+000000000000
+
+ball
+black grey
+.....00.....
+...100001...
+..00000000..
+.0000000000.
+100000000001
+000000000000
+000000000000
+100000000001
+.0000000000.
+..00000000..
+...100001...
+.....00.....
+
+N0 0.7
+transparent
+
+N1 0.8
+blue
+message 1
+
+N2 0.8
+blue
+message 2
+
+N3 0.7
+blue
+message 3
+
+N4 0.7
+blue
+message 4
+
+N5 0.7
+blue
+message 5
+
+N6 0.7
+blue
+message 6
+
+N7 0.7
+blue
+message 7
+
+N8 0.7
+blue
+message 8
+
+N9 0.7
+blue
+message 9
+
+N10 0.7
+blue
+message 10
+
+N11 0.7
+blue
+message 11
+
+N12 0.7
+blue
+message 12
+
+TR 0.7
+blue 
+message R
+
+TH 0.7
+blue 
+message H
+
+=======
+LEGEND
+=======
+
+clickable = done or N0 or ball or noball
+show = N0 or N1 or N2 or N3 or N4 or N5 or N6 or N7 or N8 or N9 or N10 or N11 or N12 or TH or TR
+D = done and edge
+N = N0 and edge
+X = noball and grid
+
+=======
+SOUNDS
+=======
+
+================
+COLLISIONLAYERS
+================
+Background
+edge
+lit
+done show ball noball
+grid
+focus 
+
+======
+RULES
+======
+
+[ focus ] -> [ ]
+[ hover clickable ] -> [ focus clickable ]
+
+[ fire1 noball ] -> [ ball ]
+[ fire1 ball ] -> [ noball ]
+
+==============
+WINCONDITIONS
+==============
+
+=======
+LEVELS
+=======
+
+DNNNNNNNNNN*
+NXXXXXXXXXXN
+NXXXXXXXXXXN
+NXXXXXXXXXXN
+NXXXXXXXXXXN
+NXXXXXXXXXXN
+NXXXXXXXXXXN
+NXXXXXXXXXXN
+NXXXXXXXXXXN
+NXXXXXXXXXXN
+NXXXXXXXXXXN
+*NNNNNNNNNN*

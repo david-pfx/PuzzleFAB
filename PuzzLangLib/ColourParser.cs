@@ -11,7 +11,6 @@
 /// 
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Text.RegularExpressions;
 using DOLE;
 
@@ -115,7 +114,7 @@ namespace PuzzLangLib {
       return _colourtable[_palettelookup[_palette] - 1];
     }
 
-    // Check for valid paletter name, then check whether defined
+    // Check for valid palette name, then check whether defined
     internal bool SetPalette(string name) {
       if (!IsPalette(name)) return false;
       if (_colourtable[_palettelookup[name] - 1] != null) _palette = name;

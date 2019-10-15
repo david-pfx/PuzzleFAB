@@ -20,14 +20,11 @@ using System.Runtime.CompilerServices;
 
 namespace PuzzLangTest {
   [TestClass]
-  public class RuleActionTests {
-    [ClassInitialize]
-    static public void ClassSetup(TestContext context) {
-    }
+  public class RuleActionTests : TestCommon {
 
     [TestMethod]
     public void PushBasic() {
-      var setup =
+      var template =
          "(rul):[> p|r]->[> p|> r];" +
                "[< p|r]->[< p|< r];" +
                "[^ p|r]->[< p|> r];" +
@@ -35,32 +32,28 @@ namespace PuzzLangTest {
         "@(lev):..P.R..;" +
         "@(win):;";
       var tests = new string[,] {
-        { "restart",                          "0; right; 1 1  12 1  13 1  1 end" },
-        { "restart,action",                   "0; right; 1 1  12 1  13 1  1 end" },
-        { "restart,hover",                    "0; right; 1 1  12 1  13 1  1 end" },
-        { "restart,fire1",                    "0; right; 1 1  12 1  13 1  1 end" },
-        { "restart,fire2",                    "0; right; 1 1  12 1  13 1  1 end" },
-        { "restart,fire3",                    "0; right; 1 1  12 1  13 1  1 end" },
-        { "restart,up",                       "0; right; 1 1  12 1  13 1  1 end" },
-        { "restart,down",                     "0; right; 1 1  12 1  13 1  1 end" },
-        { "restart,left",                     "0; right; 1 12 1  1  13 1  1 end" },
-        { "restart,right",                    "0; right; 1 1  1  12 13 1  1 end" },
-        { "restart,right,right",              "0; right; 1 1  1  1  12 13 1 end" },
-        { "restart,right,right,right",        "0; right; 1 1  1  1  1  12 13 end" },
-        { "restart,right,right,right,right",  "0; right; 1 1  1  1  1  12 13 end" },
-        { "restart,right,left",               "0; right; 1 1  12 13 1  1  1 end" },
-        { "restart,right,left,left",          "0; right; 1 12 13 1  1  1  1 end" },
-        { "restart,right,up",                 "0; right; 1 1  12 1  1  13  1 end" },
-        { "restart,right,up,up",              "0; right; 1 1  12 1  1  13  1 end" },
-        { "restart,right,down",               "0; right; 1 1  1  12 1  13  1 end" },
-        { "restart,right,down,down",          "0; right; 1 1  1  12 1  13  1 end" },
+        { "",                         "0; right; 1 1  12 1  13 1  1 end" },
+        { "action",                   "0; right; 1 1  12 1  13 1  1 end" },
+        { "hover",                    "0; right; 1 1  12 1  13 1  1 end" },
+        { "fire1",                    "0; right; 1 1  12 1  13 1  1 end" },
+        { "fire2",                    "0; right; 1 1  12 1  13 1  1 end" },
+        { "fire3",                    "0; right; 1 1  12 1  13 1  1 end" },
+        { "up",                       "0; right; 1 1  12 1  13 1  1 end" },
+        { "down",                     "0; right; 1 1  12 1  13 1  1 end" },
+        { "left",                     "0; right; 1 12 1  1  13 1  1 end" },
+        { "right",                    "0; right; 1 1  1  12 13 1  1 end" },
+        { "right,right",              "0; right; 1 1  1  1  12 13 1 end" },
+        { "right,right,right",        "0; right; 1 1  1  1  1  12 13 end" },
+        { "right,right,right,right",  "0; right; 1 1  1  1  1  12 13 end" },
+        { "right,left",               "0; right; 1 1  12 13 1  1  1 end" },
+        { "right,left,left",          "0; right; 1 12 13 1  1  1  1 end" },
+        { "right,up",                 "0; right; 1 1  12 1  1  13  1 end" },
+        { "right,up,up",              "0; right; 1 1  12 1  1  13  1 end" },
+        { "right,down",               "0; right; 1 1  1  12 1  13  1 end" },
+        { "right,down,down",          "0; right; 1 1  1  12 1  13  1 end" },
       };
 
-      var testcase = StaticTestData.GetTestCase("PRBG", "PRBG bare", setup);
-      var engine = SetupEngine(testcase);
-      for (int i = 0; i < tests.GetLength(0); i++) {
-        DoTest(engine, tests[i, 0], tests[i, 1]);
-      }
+      DoTests("PRBG", "", template, tests, DoTestLocationValue);
     }
 
     [TestMethod]
@@ -72,16 +65,16 @@ namespace PuzzLangTest {
         "@(win):";
       var variations = "R;O";
       var tests = new string[,] {
-        { "restart",                          "10; right; 13 1  12 1  13 end" },
-        { "restart,right",                    "10; right; 13 1  1  12 13 end" },
-        { "restart,right,right",              "10; right; 13 1  1  1  12 end" },
-        { "restart,right,left",               "10; right; 13 1  12 1  1 end" },
-        { "restart,left",                     "10; right; 13 12 1  1  13 end" },
-        { "restart,left,left",                "10; right; 12 1  1  1  13 end" },
-        { "restart,left,right",               "10; right; 1  1  12 1  13 end" },
+        { "",                         "10; right; 13 1  12 1  13 end" },
+        { "right",                    "10; right; 13 1  1  12 13 end" },
+        { "right,right",              "10; right; 13 1  1  1  12 end" },
+        { "right,left",               "10; right; 13 1  12 1  1 end" },
+        { "left",                     "10; right; 13 12 1  1  13 end" },
+        { "left,left",                "10; right; 12 1  1  1  13 end" },
+        { "left,right",               "10; right; 1  1  12 1  13 end" },
       };
 
-      DoTests("", variations, template, tests);
+      DoTests("PRBG", variations, template, tests, DoTestLocationValue);
     }
 
     [TestMethod]
@@ -92,14 +85,14 @@ namespace PuzzLangTest {
         "@(lev):..p.r.y.;" +
         "@(win):any r on y;";
       var tests = new string[,] {
-        { "reset",                          "0; right; 1 1 12 1  13 1  16 1  end" },
-        { "reset,right",                    "0; right; 1 1 1  12 13 1  16 1  end" },
-        { "reset,right,right",              "0; right; 1 1 1  1  12 13 16 1  end" },
-        { "reset,right,right",              "0; right; 1 1 1  1  12 13 16 1  end" },
-        { "reset,right,right,right",        "0; right; over" },
+        { "",                         "0; right; 1 1 12 1  13 1  16 1  end" },
+        { "right",                    "0; right; 1 1 1  12 13 1  16 1  end" },
+        { "right,right",              "0; right; 1 1 1  1  12 13 16 1  end" },
+        { "right,right",              "0; right; 1 1 1  1  12 13 16 1  end" },
+        { "right,right,right",        "0; right; over" },
       };
 
-      DoTests("", "", template, tests);
+      DoTests("PRBG", "", template, tests, DoTestLocationValue);
     }
 
     [TestMethod]
@@ -111,232 +104,57 @@ namespace PuzzLangTest {
         "@(lev):.R.PR..;"+
         "@(win):";
       var tests = new string[,] {
-        { "restart",                          "0; right; 1 13 1  12 13 1  1 end" },
-        { "restart,up",                       "0; right; 1 15 1  12 14 1  1 end" },
-        { "restart,right",                    "0; right; 1 15 1  1  12 13 1 end" },
-        { "restart,right,up",                 "0; right; 1 15 1  1  12 14 1 end" },
+        { "",                         "0; right; 1 13 1  12 13 1  1 end" },
+        { "up",                       "0; right; 1 15 1  12 14 1  1 end" },
+        { "right",                    "0; right; 1 15 1  1  12 13 1 end" },
+        { "right,up",                 "0; right; 1 15 1  1  12 14 1 end" },
       };
 
-      DoTests("", "", template, tests);
-    }
-
-    // Test issue: Pattern action object matching must be exact, not overlap ???
-    // see also laserblock
-    [TestMethod]
-    public void ActionNetMove() {
-      var template =
-        "(rul):[> p | r]-> [> p | > r];"  +
-              "late [ p oyk ]-> [ p y k ];" +
-        "@(lev):..k.p.y..;";
-      var tests = new string[,] {
-        { "reset",                          "0; right; 1  1  17   1 12 1  16   1  1  end" },
-        { "reset,right",                    "0; right; 1  1  17   1  1 12 16   1  1  end" },
-        { "reset,right,right",              "0; right; 1  1  17   1  1 1  1267 1  1  end" },
-        { "reset,left",                     "0; right; 1  1  17   12 1 1  16   1  1  end" },
-        { "reset,left,left",                "0; right; 1  1  1267 1  1 1  16   1  1  end" },
-      };
-
-      DoTests("", "", template, tests);
-    }
-
-    // Test issue: 
-    // see also laserblock
-    [TestMethod]
-    public void ActionOrSimple() {
-      var template =
-        "(rul):[ > p oyk ]-> [ p oyk ];" +
-        "@(lev):..k.p.y..;";
-      var tests = new string[,] {
-        { "reset",                          "0; right; 1  1  17  1 12 1  16  1  1  end" },
-        { "reset,right",                    "0; right; 1  1  17  1  1 12 16  1  1  end" },
-        { "reset,right,right",              "0; right; 1  1  17  1  1 1  126 1  1  end" },
-        { "reset,right,right,right",        "0; right; 1  1  17  1  1 1  126 1  1  end" },
-        { "reset,left",                     "0; right; 1  1  17  12 1 1  16  1  1  end" },
-        { "reset,left,left",                "0; right; 1  1  127 1  1 1  16  1  1  end" },
-        { "reset,left,left,left",           "0; right; 1  1  127 1  1 1  16  1  1  end" },
-      };
-
-      DoTests("", "", template, tests);
-    }
-
-    // Test issue: Pattern ambiguous movement should match same anywhere in action
-    // see also laserblock
-    [TestMethod]
-    public void ActionAmbiMulti() {
-      var template =
-        "(rul):[ horizontal p | oyk ]-> [ horizontal p | horizontal oyk ];" +
-        "@(lev):...k.p.y...;";
-      var tests = new string[,] {
-        { "reset",                          "0; right; 1  1  1  17  1  12 1  16  1  1  1 end" },
-        { "reset,right",                    "0; right; 1  1  1  17  1  1  12 16  1  1  1 end" },
-        { "reset,right,right",              "0; right; 1  1  1  17  1  1  1  12  16  1  1 end" },
-        { "reset,right,right,right",        "0; right; 1  1  1  17  1  1  1  1   12 16 1 end" },
-        { "reset,left",                     "0; right; 1  1  1  17  12 1  1  16  1  1  1  end" },
-        { "reset,left,left",                "0; right; 1  1 17  12  1  1  1  16  1  1  1  end" },
-        { "reset,left,left,left",           "0; right; 1 17 12  1   1  1  1  16  1  1  1  end" },
-      };
-
-      DoTests("", "", template, tests);
-    }
-
-    // Test issue: Pattern object should match same anywhere in action
-    // see also laserblock
-    [TestMethod]
-    public void ActionOrMulti() {
-      var template =
-        "(rul):[ > p oyk | | ]-> [ p | oyk | oyk ];" +
-        "@(lev):...k.p.y...;";
-      var tests = new string[,] {
-        { "reset",                          "0; right; 1  1  1  17  1  12 1  16  1  1  1 end" },
-        { "reset,right",                    "0; right; 1  1  1  17  1  1  12 16  1  1  1 end" },
-        { "reset,right,right",              "0; right; 1  1  1  17  1  1  1  126 1  1  1 end" },
-        { "reset,right,right,right",        "0; right; 1  1  1  17  1  1  1  12  16 16 1 end" },
-        { "reset,left",                     "0; right; 1  1  1  17  12 1  1  16  1  1  1  end" },
-        { "reset,left,left",                "0; right; 1  1  1  127 1  1  1  16  1  1  1  end" },
-        { "reset,left,left,left",           "0; right; 1 17 17  12  1  1  1  16  1  1  1  end" },
-      };
-
-      DoTests("", "", template, tests);
-    }
-
-    // test some weird characters
-    [TestMethod]
-    public void LegendOddSymbols() {
-      var setup = 
-         "(rul):[> p|r]->[> p|> r];" +
-        "@(leg):. = Background;a = R and K;o = R or G or B or Y;" +
-               "[ = r; | = b; ] = g;" +
-        "@(lev):.P.[|].;" +
-        "@(win):;";
-      var tests = new string[,] {
-        { "restart",                          "0; right; 1  12 1  13 14 15 1 end" },
-      };
-
-      var testcase = StaticTestData.GetTestCase("PRBG", "PRBG bare", setup);
-      var engine = SetupEngine(testcase);
-      for (int i = 0; i < tests.GetLength(0); i++) {
-        DoTest(engine, tests[i, 0], tests[i, 1]);
-      }
+      DoTests("PRBG", "", template, tests, DoTestLocationValue);
     }
 
     [TestMethod]
-    public void EllipsisSimple() {
-      var template = 
-         "(rul):[>p|...|r]->[>p|...|>r]" +
-        "@(lev):..RP.R.." +
-        "@(win):";
-      var tests = new string[,] {
-        { "restart",                          "0; right; 1  1  13 12 1  13  1 1 end" },
-        { "restart,up",                       "0; right; 1  1  13 12 1  13  1 1 end" },
-        { "restart,down",                     "0; right; 1  1  13 12 1  13  1 1 end" },
-        { "restart,right",                    "0; right; 1  1  13 1  12 1  13 1 end" },
-        { "restart,right,right",              "0; right; 1  1  13 1  1  12  1 13 end" },
-        { "restart,right,right,right",        "0; right; 1  1  13 1  1  1  12 13 end" },
-        { "restart,right,right,right,right",  "0; right; 1  1  13 1  1  1  12 13 end" },
-        { "restart,left",                     "0; right; 1  13 12 1  1  13  1 1 end" },
-        { "restart,left,left",                "0; right; 13 12 1  1  1  13  1 1 end" },
-        { "restart,left,left,left",           "0; right; 13 12 1  1  1  13  1 1 end" },
-      };
-
-      DoTests("", "", template, tests);
-    }
-
-    // ellipsis matches only once???
-    [TestMethod]
-    public void EllipsisNoDup() {
-      var template =
-         "(rul):[ > p | ... | r ] -> [ p | ... | b ]" +
-        "@(lev):...P.RR.." +
-        "@(win):";
-      var tests = new string[,] {
-        { "restart",                          "0; right; 1  1  1 12 1  13  13  1 1 end" },
-        { "restart,up",                       "0; right; 1  1  1 12 1  13  13  1 1 end" },
-        { "restart,down",                     "0; right; 1  1  1 12 1  13  13  1 1 end" },
-        { "restart,right",                    "0; right; 1  1  1 12 1  14  13  1 1 end" },
-        { "restart,right,right",              "0; right; 1  1  1 12 1  14  14  1 1 end" },
-        { "restart,right,right,right",        "0; right; 1  1  1 1  12 14  14  1 1 end" },
-      };
-
-      DoTests("", "", template, tests);
-    }
-
-    // use ellipsis to fill a row
-    [TestMethod]
-    public void EllipsisFill() {
-      var template =
-         "(rul):[ > p | ... | ] -> [ > p | ... | r ]" +
-        "@(lev):P...;....;...." +
-        "@(win):";
-      var tests = new string[,] {
-        { "restart",                          "0; right; 12 1  1  1  end" },
-        { "restart,up",                       "0; right; 12 1  1  1  end" },
-        { "restart,down",                     "0; right; 12 1  1  1  end" },
-        { "restart,left",                     "0; right; 12 1  1  1  end" },
-        { "restart,right",                    "0; right; 12 13 13 13 end" },
-        { "restart",                          "0; down;  12 1  1  end" },
-        { "restart,up",                       "0; down;  12 1  1  end" },
-        { "restart,left",                     "0; down;  12 1  1  end" },
-        { "restart,right",                    "0; down;  12 1  1  end" },
-        { "restart,down",                     "0; down;  12 13 13 end" },
-      };
-
-      DoTests("", "", template, tests);
-    }
-
-    // use ellipsis to drag from far to near
-    [TestMethod]
-    public void EllipsisDrag() {
-      var template =
-         "(rul): {0} [ p | ... | | r ]->[ p | ... | r | ];" +
-        "@(lev):.P.......R.";
-      var variations = ";late";
-      var tests = new string[,] {
-        { "restart",                          "0; right; 1 12 1  1 1 1 1 1 1 13 1 end" },
-        { "restart,action",                   "0; right; 1 12 13 1 1 1 1 1 1 1 1 end" },
-      };
-
-      DoTests("", variations, template, tests);
-    }
-
-    [TestMethod]
-    public void SegmentedRule() {
+    public void MatchSegmentedRule() {
       var template =
          "(rul):[up p][r]->[up p][];" +
                "[right p][b]->[right p][]; " +
         "@(lev):.....;.p...;..rr.;..bb.";
       var tests = new string[,] {
-        { "restart",                          "10; right; 1 1 13 13 1 end" },
-        { "restart,right",                    "10; right; 1 1 13 13 1 end" },
-        { "restart,left",                     "10; right; 1 1 13 13 1 end" },
-        { "restart,up",                       "10; right; 1 1 1  1  1 end" },
-        { "restart,up,up",                    "10; right; 1 1 1  1  1 end" },
-        { "restart",                          "15; right; 1 1 14 14 1 end" },
-        { "restart,right",                    "15; right; 1 1 1  1  1 end" },
-        { "restart,right,right",              "15; right; 1 1 1  1  1 end" },
-        { "restart,left",                     "15; right; 1 1 14 14 1 end" },
-        { "restart,up",                       "15; right; 1 1 14 14 1 end" },
+        { "",                         "10; right; 1 1 13 13 1 end" },
+        { "right",                    "10; right; 1 1 13 13 1 end" },
+        { "left",                     "10; right; 1 1 13 13 1 end" },
+        { "up",                       "10; right; 1 1 1  1  1 end" },
+        { "up,up",                    "10; right; 1 1 1  1  1 end" },
+        { "",                         "15; right; 1 1 14 14 1 end" },
+        { "right",                    "15; right; 1 1 1  1  1 end" },
+        { "right,right",              "15; right; 1 1 1  1  1 end" },
+        { "left",                     "15; right; 1 1 14 14 1 end" },
+        { "up",                       "15; right; 1 1 14 14 1 end" },
       };
 
-      DoTests("", "", template, tests);
+      DoTests("PRBG", "", template, tests, DoTestLocationValue);
     }
 
     [TestMethod]
-    public void RandomRule() {
+    public void MatchSingleton() {
       var template =
-         "(rul):random [p|r]->[>p|>r];" +
-               "random [>p|g]->[>p|randomdir g];" +   // hit green moves random
-               "random [>p|b]->[>p|random o];" +      // hit blue spawns R or G or B or Y
-        "@(lev):..r..;.bpg.;";
+        "(rul):[ up p ]->[ right r ];" +
+              //"[ right p ]->[ > r ];" +
+              "[ down p ]->[ r ];" +
+              //"[ left p ]->[ < r ];" +
+              "[ action p ]->[ ];" +
+        "@(lev):.P..;" +
+        "@(win):";
       var tests = new string[,] {
-        { "restart",                          "0; right; 1 1  13 1  1 end" },
-        { "restart",                          "5; right; 1 14 12 15 1 end" },
-        { "restart,up",                       "0; right; 1 1" },  // TODO:test something!!!
-        { "restart,down",                     "0; right; 1 1" },
-        { "restart,left",                     "0; right; 1 1" },
-        { "restart,right",                    "0; right; 1 1" },
+        { "",                                     "0; right; 1  12 1  1 end" },
+        { "up",                                   "0; right; 1  1  13 1 end" },
+        //{ "right",                                "0; right; 1  13 1  1 end" },
+        { "down",                                 "0; right; 1  13 1  1 end" },
+        //{ "left",                                 "0; right; 1  1  13 1 end" },
+        { "action",                               "0; right; 1  1  1  1 end" },
       };
 
-      DoTests("", "", template, tests);
+      DoTests("PRBG", "", template, tests, DoTestLocationValue);
     }
 
     [TestMethod]
@@ -347,31 +165,287 @@ namespace PuzzLangTest {
                "[orthogonal p|b]->[>p|>b];" +
         "@(lev):.......;.b.p.r.;.y...g.;.......";
       var tests = new string[,] {
-        { "restart",                          "7; right; 1  14 1  12 1  13 1  end" },
-        { "restart",                         "14; right; 1  16 1  1  1  15 1  end" },
+        { "",                         "7; right; 1  14 1  12 1  13 1  end" },
+        { "",                        "14; right; 1  16 1  1  1  15 1  end" },
 
-        { "restart,right",                    "7; right; 1  14 1  1  12 13 1 end" },
-        { "restart,right,right",              "7; right; 1  14 1  1  1  12 13 end" },
-        { "restart,right,left",               "7; right; 1  14 1  1  1  12 13 end" },
-        { "restart,right,up",                 "7; right; 1  14 1  1  1  13 1 end" },
-        { "restart,right,down",               "7; right; 1  14 1  1  1  13 1 end" },
+        { "right",                    "7; right; 1  14 1  1  12 13 1 end" },
+        { "right,right",              "7; right; 1  14 1  1  1  12 13 end" },
+        { "right,left",               "7; right; 1  14 1  1  1  12 13 end" },
+        { "right,up",                 "7; right; 1  14 1  1  1  13 1 end" },
+        { "right,down",               "7; right; 1  14 1  1  1  13 1 end" },
 
-        { "restart,left",                     "7; right; 1  14 12 1  1  13 1  end" },
-        { "restart,left,left",                "7; right; 14 12 1  1  1  13 1  end" },
-        { "restart,left,left",                "7; right; 14 12 1  1  1  13 1  end" },
-        { "restart,left,up",                  "7; right; 14 12 1  1  1  13 1  end" },
-        { "restart,left,down",                "7; right; 14 12 1  1  1  13 1  end" },
+        { "left",                     "7; right; 1  14 12 1  1  13 1  end" },
+        { "left,left",                "7; right; 14 12 1  1  1  13 1  end" },
+        { "left,left",                "7; right; 14 12 1  1  1  13 1  end" },
+        { "left,up",                  "7; right; 14 12 1  1  1  13 1  end" },
+        { "left,down",                "7; right; 14 12 1  1  1  13 1  end" },
 
-        { "restart",                          "14; right; 1  16 1  1  1  15 1  end" },
-        { "restart,down",                     "14; right; 1  16 1  12 1  15 1  end" },
-        { "restart,down,right",               "14; right; 1  16 1  1  12 15 1  end" },
-        { "restart,down,right,right",         "14; right; 1  16 1  1  12 15 1  end" },
-        { "restart,down,right,left",          "14; right; 1  16 1  12 1  15 1  end" },
-        { "restart,down,right,up",            "14; right; 1  16 1  1  1  12 15  end" },
-        { "restart,down,right,down",          "14; right; 1  16 1  1  1  12 15  end" },
+        { "",                         "14; right; 1  16 1  1  1  15 1  end" },
+        { "down",                     "14; right; 1  16 1  12 1  15 1  end" },
+        { "down,right",               "14; right; 1  16 1  1  12 15 1  end" },
+        { "down,right,right",         "14; right; 1  16 1  1  12 15 1  end" },
+        { "down,right,left",          "14; right; 1  16 1  12 1  15 1  end" },
+        { "down,right,up",            "14; right; 1  16 1  1  1  12 15  end" },
+        { "down,right,down",          "14; right; 1  16 1  1  1  12 15  end" },
       };
 
-      DoTests("", "", template, tests);
+      DoTests("PRBG", "", template, tests, DoTestLocationValue);
+    }
+
+    // Test issue: Pattern action object matching must be exact, not overlap ???
+    [TestMethod]
+    public void ActionNetMove() {
+      var template =
+        "(rul):[> p | r]-> [> p | > r];"  +
+              "late [ p oyk ]-> [ p y k ];" +
+        "@(lev):..k.p.y..;";
+      var tests = new string[,] {
+        { "",                         "0; right; 1  1  17   1 12 1  16   1  1  end" },
+        { "right",                    "0; right; 1  1  17   1  1 12 16   1  1  end" },
+        { "right,right",              "0; right; 1  1  17   1  1 1  1267 1  1  end" },
+        { "left",                     "0; right; 1  1  17   12 1 1  16   1  1  end" },
+        { "left,left",                "0; right; 1  1  1267 1  1 1  16   1  1  end" },
+      };
+
+      DoTests("PRBG", "", template, tests, DoTestLocationValue);
+    }
+
+    // Test issue: same property both sides no action
+    [TestMethod]
+    public void ActionOrSimple() {
+      var template =
+        "(rul):[ > p oyk ]-> [ p oyk ];" +
+        "@(lev):..k.p.y..;";
+      var tests = new string[,] {
+        { "",                         "0; right; 1  1  17  1 12 1  16  1  1  end" },
+        { "right",                    "0; right; 1  1  17  1  1 12 16  1  1  end" },
+        { "right,right",              "0; right; 1  1  17  1  1 1  126 1  1  end" },
+        { "right,right,right",        "0; right; 1  1  17  1  1 1  126 1  1  end" },
+        { "left",                     "0; right; 1  1  17  12 1 1  16  1  1  end" },
+        { "left,left",                "0; right; 1  1  127 1  1 1  16  1  1  end" },
+        { "left,left,left",           "0; right; 1  1  127 1  1 1  16  1  1  end" },
+      };
+
+      DoTests("PRBG", "", template, tests, DoTestLocationValue);
+    }
+
+    // Test issue: 'no property' on the RHS should clear objects
+    [TestMethod]
+    public void ActionNoOr() {
+      var template =
+        "(rul):[ > p | ]-> [ > p | no oyk ];" +
+        "@(lev):..k.p.y..;";
+      var tests = new string[,] {
+        { "",                         "0; right; 1  1  17  1 12 1  16  1  1  end" },
+        { "right",                    "0; right; 1  1  17  1  1 12 16  1  1  end" },
+        { "right,right",              "0; right; 1  1  17  1  1 1  12  1  1  end" },
+        { "right,right,right",        "0; right; 1  1  17  1  1 1  1   12 1  end" },
+        { "left",                     "0; right; 1  1  17  12 1 1  16  1  1  end" },
+        { "left,left",                "0; right; 1  1  12  1  1 1  16  1  1  end" },
+        { "left,left,left",           "0; right; 1  12 1   1  1 1  16  1  1  end" },
+      };
+
+      DoTests("PRBG", "", template, tests, DoTestLocationValue);
+    }
+
+    // Test issue: Pattern ambiguous movement should match same anywhere in action
+    // see also laserblock
+    [TestMethod]
+    public void ActionAmbiMulti() {
+      var template =
+        "(rul):[ horizontal p | oyk ]-> [ horizontal p | horizontal oyk ];" +
+        "@(lev):...k.p.y...;";
+      var tests = new string[,] {
+        { "",                         "0; right; 1  1  1  17  1  12 1  16  1  1  1 end" },
+        { "right",                    "0; right; 1  1  1  17  1  1  12 16  1  1  1 end" },
+        { "right,right",              "0; right; 1  1  1  17  1  1  1  12  16  1  1 end" },
+        { "right,right,right",        "0; right; 1  1  1  17  1  1  1  1   12 16 1 end" },
+        { "left",                     "0; right; 1  1  1  17  12 1  1  16  1  1  1  end" },
+        { "left,left",                "0; right; 1  1 17  12  1  1  1  16  1  1  1  end" },
+        { "left,left,left",           "0; right; 1 17 12  1   1  1  1  16  1  1  1  end" },
+      };
+
+      DoTests("PRBG", "", template, tests, DoTestLocationValue);
+    }
+
+    // Test issue: Pattern object should match same anywhere in action
+    [TestMethod]
+    public void ActionOrMulti() {
+      var template =
+        "(rul):[ > p oyk | | ]-> [ p | oyk | oyk ];" +
+        "@(lev):...k.p.y...;";
+      var tests = new string[,] {
+        { "",                         "0; right; 1  1  1  17  1  12 1  16  1  1  1 end" },
+        { "right",                    "0; right; 1  1  1  17  1  1  12 16  1  1  1 end" },
+        { "right,right",              "0; right; 1  1  1  17  1  1  1  126 1  1  1 end" },
+        { "right,right,right",        "0; right; 1  1  1  17  1  1  1  12  16 16 1 end" },
+        { "left",                     "0; right; 1  1  1  17  12 1  1  16  1  1  1  end" },
+        { "left,left",                "0; right; 1  1  1  127 1  1  1  16  1  1  1  end" },
+        { "left,left,left",           "0; right; 1 17 17  12  1  1  1  16  1  1  1  end" },
+      };
+
+      DoTests("PRBG", "", template, tests, DoTestLocationValue);
+    }
+
+    [TestMethod]
+    public void MatchEllipsisSimple() {
+      var template = 
+         "(rul):[>p|...|r]->[>p|...|>r]" +
+        "@(lev):..RP.R.." +
+        "@(win):";
+      var tests = new string[,] {
+        { "",                         "0; right; 1  1  13 12 1  13  1 1 end" },
+        { "up",                       "0; right; 1  1  13 12 1  13  1 1 end" },
+        { "down",                     "0; right; 1  1  13 12 1  13  1 1 end" },
+        { "right",                    "0; right; 1  1  13 1  12 1  13 1 end" },
+        { "right,right",              "0; right; 1  1  13 1  1  12  1 13 end" },
+        { "right,right,right",        "0; right; 1  1  13 1  1  1  12 13 end" },
+        { "right,right,right,right",  "0; right; 1  1  13 1  1  1  12 13 end" },
+        { "left",                     "0; right; 1  13 12 1  1  13  1 1 end" },
+        { "left,left",                "0; right; 13 12 1  1  1  13  1 1 end" },
+        { "left,left,left",           "0; right; 13 12 1  1  1  13  1 1 end" },
+      };
+
+      DoTests("PRBG", "", template, tests, DoTestLocationValue);
+    }
+
+    // ellipsis matches only once???
+    [TestMethod]
+    public void ActionEllipsisNoDup() {
+      var template =
+         "(rul):[ > p | ... | r ] -> [ p | ... | b ]" +
+        "@(lev):...P.RR.." +
+        "@(win):";
+      var tests = new string[,] {
+        { "",                         "0; right; 1  1  1 12 1  13  13  1 1 end" },
+        { "up",                       "0; right; 1  1  1 12 1  13  13  1 1 end" },
+        { "down",                     "0; right; 1  1  1 12 1  13  13  1 1 end" },
+        { "right",                    "0; right; 1  1  1 12 1  14  13  1 1 end" },
+        { "right,right",              "0; right; 1  1  1 12 1  14  14  1 1 end" },
+        { "right,right,right",        "0; right; 1  1  1 1  12 14  14  1 1 end" },
+      };
+
+      DoTests("PRBG", "", template, tests, DoTestLocationValue);
+    }
+
+    // use ellipsis to fill a row
+    [TestMethod]
+    public void ActionEllipsisFill() {
+      var template =
+         "(rul):[ > p | ... | ] -> [ > p | ... | r ]" +
+        "@(lev):P...;....;...." +
+        "@(win):";
+      var tests = new string[,] {
+        { "",                         "0; right; 12 1  1  1  end" },
+        { "up",                       "0; right; 12 1  1  1  end" },
+        { "down",                     "0; right; 12 1  1  1  end" },
+        { "left",                     "0; right; 12 1  1  1  end" },
+        { "right",                    "0; right; 12 13 13 13 end" },
+        { "",                         "0; down;  12 1  1  end" },
+        { "up",                       "0; down;  12 1  1  end" },
+        { "left",                     "0; down;  12 1  1  end" },
+        { "right",                    "0; down;  12 1  1  end" },
+        { "down",                     "0; down;  12 13 13 end" },
+      };
+
+      DoTests("PRBG", "", template, tests, DoTestLocationValue);
+    }
+
+    // use ellipsis to drag from far to near
+    [TestMethod]
+    public void ActionEllipsisDrag() {
+      var template =
+         "(rul): {0} [ p | ... | | r ]->[ p | ... | r | ];" +
+        "@(lev):.P.......R.";
+      var variations = ";late";
+      var tests = new string[,] {
+        { "",                         "0; right; 1 12 1  1 1 1 1 1 1 13 1 end" },
+        { "action",                   "0; right; 1 12 13 1 1 1 1 1 1 1 1 end" },
+      };
+
+      DoTests("PRBG", variations, template, tests, DoTestLocationValue);
+    }
+
+    // Test issue: match on property but create object
+    [TestMethod]
+    public void ActionOrCreate() {
+      var template =
+         "(obj):Background;black;;PR;white;;PL;grey;;R;RED;;B;BLUE;;G;green;;Y;yellow;;K;Pink;;" +
+        "@(leg):. = Background;PLAYER=PR or PL;P = PR;" +
+        "@(rul):[ left player  ] -> [ left PL ];" +
+               "[ right player ] -> [ right PR ];" +
+        "@(lev):..p..;" +
+        "@(win):no player;";
+      ;
+      var tests = new string[,] {
+        { "",                         "0; right; 1  1  12 1  1  end" },
+        { "right",                    "0; right; 1  1  1  12 1  end" },
+        { "right,left",               "0; right; 1  1  13 1  1  end" },
+        { "right,left,left",          "0; right; 1  13 1  1  1  end" },
+        { "left",                     "0; right; 1  13 1  1  1  end" },
+        { "left,left",                "0; right; 13 1  1  1  1  end" },
+        { "left,right",               "0; right; 1  1  12 1  1  end" },
+      };
+
+      DoTests("PRBG", "", template, tests, DoTestLocationValue);
+    }
+
+    // Test issue: new feature property map
+    [TestMethod]
+    public void ActionPropertyMap() {
+      var template = 
+         "(leg):. = Background;rbg = r or b or g;bgr = b or g or r;" +
+        "@(rul):[ > p | rbg ]-> [ > p | > bgr ];" +
+        "@(lev):..bpr..;" +
+        "@(win):no player;";
+      ;
+      var tests = new string[,] {
+        { "",                         "0; right; 1  1  14  12 13  1   1  end" },
+        { "right",                    "0; right; 1  1  14  1  12  14  1  end" },
+        { "right,right",              "0; right; 1  1  14  1  1   12  15 end" },
+        { "right,right,right",        "0; right; 1  1  14  1  1   12  13 end" },
+        { "left",                     "0; right; 1  15 12  1  13  1  1   end" },
+        { "left,left",                "0; right; 13 12  1  1  13  1  1   end" },
+        { "left,left,left",           "0; right; 14 12  1  1  13  1  1   end" },
+      };
+
+      DoTests("PRBG", "", template, tests, DoTestLocationValue);
+    }
+
+    [TestMethod]
+    public void RandomRule() {
+      var template =
+         "(rul):random [p|r]->[>p|>r];" +
+               "random [>p|g]->[>p|randomdir g];" +   // hit green moves random
+               "random [>p|b]->[>p|random o];" +      // hit blue spawns R or G or B or Y
+        "@(lev):..r..;.bpg.;";
+      var tests = new string[,] {
+        { "",                         "0; right; 1 1  13 1  1 end" },
+        { "",                         "5; right; 1 14 12 15 1 end" },
+        { "up",                       "0; right; 1 1" },  // TODO:test something!!!
+        { "down",                     "0; right; 1 1" },
+        { "left",                     "0; right; 1 1" },
+        { "right",                    "0; right; 1 1" },
+      };
+
+      DoTests("PRBG", "", template, tests, DoTestLocationValue);
+    }
+
+    [TestMethod]
+    public void RandomAction() {
+      var template =
+         "(rul):[ o ] -> [ random o ];" +
+        "@(lev):..r..;.bpg.;";
+      var tests = new string[,] {
+        { "",                         "0; right; 1 1  13 1  1 end" },
+        { "",                         "5; right; 1 14 12 15 1 end" },
+        { "up",                       "0; right; 1 1" },  // TODO:test something!!!
+        { "down",                     "0; right; 1 1" },
+        { "left",                     "0; right; 1 1" },
+        { "right",                    "0; right; 1 1" },
+      };
+
+      DoTests("PRBG", "", template, tests, DoTestLocationValue);
     }
 
     // issue: Rule after loop is skipped
@@ -387,87 +461,13 @@ namespace PuzzLangTest {
                "right [ | > p ] -> [ g | > p ];" +  //
         "@(lev):..PBRBR..";
       var tests = new string[,] {
-        { "restart",                          "0; right; 1 1  12  14  13 14 13 1 1 end" },
-        { "restart,right",                    "0; right; 1 15 1   12  14 13 14 13 1 end" },
-        { "restart,right,right",              "0; right; 1 15 15  1   12 14 13 14 13 end" },
-        { "restart,right,right,right",        "0; right; 1 15 15  15  12 14 13 14 13 end" },
+        { "",                         "0; right; 1 1  12  14  13 14 13 1 1 end" },
+        { "right",                    "0; right; 1 15 1   12  14 13 14 13 1 end" },
+        { "right,right",              "0; right; 1 15 15  1   12 14 13 14 13 end" },
+        { "right,right,right",        "0; right; 1 15 15  15  12 14 13 14 13 end" },
       };
 
-      DoTests("", "", template, tests);
-    }
-
-    [TestMethod]
-    public void CommandExit() {
-      var template =
-         "(rul):[>p|r]->restart;" +
-               "[>p|b]->cancel;" +
-               "[>p|g]->checkpoint;" +
-               "[>p|y]->win;" +
-        "@(lev):.......;.b.p.r.;.y...g.;.......;;" +
-                "...;";
-      var tests = new string[,] {
-        // undo
-        { "reset",                                      "7; right; 1  14 1  12 1  13 1  end" },
-        { "reset,right",                                "7; right; 1  14 1  1 12  13 1  end" },
-        { "reset,right,undo",                           "7; right; 1  14 1  12 1  13 1  end" },
-        { "reset,right,undo,undo",                      "7; right; 1  14 1  12 1  13 1  end" },
-        { "reset,left",                                 "7; right; 1  14 12 1  1  13 1  end" },
-        { "reset,left,right",                           "7; right; 1  14 1  12 1  13 1  end" },
-        { "reset,left,right,undo",                      "7; right; 1  14 12 1  1  13 1  end" },
-        { "reset,left,right,undo,undo",                 "7; right; 1  14 1  12 1  13 1  end" },
-        { "reset,left,right,undo,undo,undo",            "7; right; 1  14 1  12 1  13 1  end" },
-
-        // restart
-        { "reset",                          "7; right; 1  14 1  12 1  13 1  end" },
-        { "reset,right",                    "7; right; 1  14 1  1 12  13 1  end" },
-        { "reset,right,right",              "7; right; 1  14 1  12 1  13 1  end" },
-        { "reset,right,right,right",        "7; right; 1  14 1  1 12  13 1  end" },
-
-        // cancel
-        { "reset,left",                     "7; right; 1  14 12 1  1  13 1  end" },
-        { "reset,left,left",                "7; right; 1  14 12 1  1  13 1  end" },
-        { "reset,left,left,left",           "7; right; 1  14 12 1  1  13 1  end" },
-
-        // checkpoint
-        { "reset",                               "14; right; 1  16 1  1  1  15 1  end" },
-        { "reset,down",                          "14; right; 1  16 1  12 1  15 1  end" },
-        { "reset,down,right",                    "14; right; 1  16 1  1  12 15 1  end" },
-        { "reset,down,right,right",              "14; right; 1  16 1  1  12 15 1  end" }, // triggers checkpoint
-        { "reset,down,right,right,left",         "14; right; 1  16 1  12 1  15 1  end" },
-        { "reset,down,right,right,left,restart", "14; right; 1  16 1  1  12 15 1  end" },
-        { "reset,down,right,right,left,restart", "14; right; 1  16 1  1  12 15 1  end" },
-
-        // win
-        { "reset",                               "14; right; 1  16 1  1  1  15 1  end" },
-        { "reset,down",                          "14; right; 1  16 1  12 1  15 1  end" },
-        { "reset,down,left",                     "14; right; 1  16 12 1  1  15 1  end" },
-        { "reset,down,left,left",                "0; right; 1  1  1 end" },
-
-      };
-
-      DoTests("", "", template, tests);
-    }
-
-    [TestMethod]
-    public void Singles() {
-      var template =
-        "(rul):[ up p ]->[ right r ];" +
-              //"[ right p ]->[ > r ];" +
-              "[ down p ]->[ r ];" +
-              //"[ left p ]->[ < r ];" +
-              "[ action p ]->[ ];" +
-        "@(lev):.P..;" +
-        "@(win):";
-      var tests = new string[,] {
-        { "reset",                                      "0; right; 1  12 1  1 end" },
-        { "reset,up",                                   "0; right; 1  1  13 1 end" },
-        //{ "reset,right",                                "0; right; 1  13 1  1 end" },
-        { "reset,down",                                 "0; right; 1  13 1  1 end" },
-        //{ "reset,left",                                 "0; right; 1  1  13 1 end" },
-        { "reset,action",                               "0; right; 1  1  1  1 end" },
-      };
-
-      DoTests("Singles", "", template, tests);
+      DoTests("PRBG", "", template, tests, DoTestLocationValue);
     }
 
     [TestMethod]
@@ -481,22 +481,22 @@ namespace PuzzLangTest {
                "......;" +
         "@(win):";
       var tests = new string[,] {
-        { "reset",                              "6; right; 12 1  13  1 1  1 end" },
-        { "reset,right",                        "6; right; 1  12 13  1 1  1 end" },
-        { "reset,right,right",                  "6; right; 1  1  12 13 1  1 end" },
-        { "reset,right,right,right",            "6; right; 1  1  12 13 1  1 end" },
-        { "reset,right,right,right,down",       "6; right; 1  1  1  13 1  1 end" },
-        { "reset,right,right,right,down,right", "6; right; 1  1  1  1  13 1 end" },
+        { "",                             "6; right; 12 1  13  1 1  1 end" },
+        { "right",                        "6; right; 1  12 13  1 1  1 end" },
+        { "right,right",                  "6; right; 1  1  12 13 1  1 end" },
+        { "right,right,right",            "6; right; 1  1  12 13 1  1 end" },
+        { "right,right,right,down",       "6; right; 1  1  1  13 1  1 end" },
+        { "right,right,right,down,right", "6; right; 1  1  1  1  13 1 end" },
 
-        { "reset",                              "12; right; 1 13 13  1  1  1 end" },
-        { "reset,right",                        "12; right; 1 13 13  1  1  1 end" },
-        { "reset,right,right",                  "12; right; 1 1  13  13 1  1 end" },
-        { "reset,right,right,right",            "12; right; 1 1  13  13 1  1 end" },
-        { "reset,right,right,right,down",       "12; right; 1 1  12  13 1  1 end" },
-        { "reset,right,right,right,down,right", "12; right; 1 1  1   12 13 1 end" },
+        { "",                             "12; right; 1 13 13  1  1  1 end" },
+        { "right",                        "12; right; 1 13 13  1  1  1 end" },
+        { "right,right",                  "12; right; 1 1  13  13 1  1 end" },
+        { "right,right,right",            "12; right; 1 1  13  13 1  1 end" },
+        { "right,right,right,down",       "12; right; 1 1  12  13 1  1 end" },
+        { "right,right,right,down,right", "12; right; 1 1  1   12 13 1 end" },
       };
 
-      DoTests("Rigid", "", template, tests);
+      DoTests("PRBG", "", template, tests, DoTestLocationValue);
     }
 
     // left just pushes, right sends blue to edge
@@ -511,15 +511,15 @@ namespace PuzzLangTest {
         "@(lev):....r.p.r....;" +
         "@(win):";
       var tests = new string[,] {
-        { "reset",                  "0; right; 1 1 1 1  13 1  12 1  13 1  1  1  1  end" },
-        { "reset,left",             "0; right; 1 1 1 1  13 12 1  1  13 1  1  1  1  end" },
-        { "reset,left,left",        "0; right; 1 1 1 15 1  12 1  1  13 1  1  1  1  end" },
-        { "reset,right",            "0; right; 1 1 1 1  13 1  1  12 13 1  1  1  1  end" },
-        { "reset,right,right",      "0; right; 1 1 1 1  13 1  1  12 1  1  1  1  14 end" },
-        { "reset,right,right,undo", "0; right; 1 1 1 1  13 1  1  12 13 1  1  1  1  end" },
+        { "",                 "0; right; 1 1 1 1  13 1  12 1  13 1  1  1  1  end" },
+        { "left",             "0; right; 1 1 1 1  13 12 1  1  13 1  1  1  1  end" },
+        { "left,left",        "0; right; 1 1 1 15 1  12 1  1  13 1  1  1  1  end" },
+        { "right",            "0; right; 1 1 1 1  13 1  1  12 13 1  1  1  1  end" },
+        { "right,right",      "0; right; 1 1 1 1  13 1  1  12 1  1  1  1  14 end" },
+        { "right,right,undo", "0; right; 1 1 1 1  13 1  1  12 13 1  1  1  1  end" },
       };
 
-      DoTests("", "", template, tests);
+      DoTests("PRBG", "", template, tests, DoTestLocationValue);
     }
 
     // input ignored, sucks r left then kills it
@@ -531,42 +531,29 @@ namespace PuzzLangTest {
         "@(lev):..p.r..;" +
         "@(win):";
       var tests = new string[,] {
-        { "reset",          "0; right; 1 1 12 1  13 1 1  end" },
-        { "reset,tick",     "0; right; 1 1 12 1  1  1 1 end" },
+        { "",         "0; right; 1 1 12 1  13 1 1 end" },
+        { "action",   "0; right; 1 1 12 1  1  1 1 end" },
       };
 
-      DoTests("", ";late", template, tests);
+      DoTests("PRBG", "", template, tests, DoTestLocationValue);
     }
 
+    // test some weird characters
     [TestMethod]
-    public void CreateByMask() {
+    public void LegendOddSymbols() {
       var template =
-         "(obj):Background;black;;PR;white;;PL;grey;;R;RED;;B;BLUE;;G;green;;Y;yellow;;K;Pink;;" +
-        "@(leg):. = Background;PLAYER=PR or PL;P = PR;" +
-        "@(rul):[ left player  ] -> [ left PL ];" +
-               "[ right player ] -> [ right PR ];" +
-        "@(lev):..p..;" +
-        "@(win):no player;";
-      ;
+         "(rul):[> p|r]->[> p|> r];" +
+        "@(leg):. = Background;a = R and K;o = R or G or B or Y;" +
+               "[ = r; | = b; ] = g;" +
+        "@(lev):.P.[|].;" +
+        "@(win):;";
       var tests = new string[,] {
-        { "reset",                          "0; right; 1  1  12 1  1  end" },
-        { "reset,right",                    "0; right; 1  1  1  12 1  end" },
-        { "reset,right,left",               "0; right; 1  1  13 1  1  end" },
-        { "reset,right,left,left",          "0; right; 1  13 1  1  1  end" },
-        { "reset,left",                     "0; right; 1  13 1  1  1  end" },
-        { "reset,left,left",                "0; right; 13 1  1  1  1  end" },
-        { "reset,left,right",               "0; right; 1  1  12 1  1  end" },
-        // old behaviour -- delete
-        //{ "reset",                          "0; right; 1 1  12 1  1  end" },
-        //{ "reset,right",                    "0; right; 1 1  1  12 1  end" },
-        //{ "reset,right,left",               "0; right; 1 1  1  13 1  end" },
-        //{ "reset,right,left,left",          "0; right; 1 1  13 1  1  end" },
-        //{ "reset,left",                     "0; right; 1 1  13 1  1  end" },
-        //{ "reset,left,left",                "0; right; 1 13 1  1  1  end" },
-        //{ "reset,left,right",               "0; right; 1 1  12 1  1  end" },
+        { "",                         "0; right; 1  12 1  13 14 15 1 end" },
       };
 
-      DoTests("", "", template, tests);
+      for (int i = 0; i < tests.GetLength(0); i++) {
+        DoTests("PRBG", "", template, tests, DoTestLocationValue);
+      }
     }
 
     [TestMethod]
@@ -579,12 +566,12 @@ namespace PuzzLangTest {
         "all p on y; some p on y; all y on p; some y on p; " +
         "all p on o; some p on o; all o on p; some o on p";
       var tests = new string[,] {
-        { "restart",                          "0; right; 1 1 12 1 16 1 1 end" },
-        { "restart,right",                    "0; right; 1 1 1 12 16 1 1 end" },
-        { "restart,right,right",              "0; right; over" },
+        { "",                         "0; right; 1 1 12 1 16 1 1 end" },
+        { "right",                    "0; right; 1 1 1 12 16 1 1 end" },
+        { "right,right",              "0; right; over" },
       };
 
-      DoTests("", variations, template, tests);
+      DoTests("PRBG", variations, template, tests, DoTestLocationValue);
     }
 
     [TestMethod]
@@ -596,15 +583,15 @@ namespace PuzzLangTest {
         "@(lev):.p.r.;" +
         "@(win):;";
       var tests = new string[,] {
-        { "",                               "0; right; 1 12 1  14 1  end" },
-        { "reset",                          "0; right; 1 12 1  14 1  end" },
-        { "reset,right",                    "0; right; 1 1 12  14 1  end" },
-        { "reset,right,restart",            "0; right; 1 12 1  14 1  end" },
-        { "reset,right,right",              "0; right; 1 1  1  12 14 end" },
-        { "reset,right,right,restart",      "0; right; 1 12 1  14 1  end" },
+        { "",                         "0; right; 1 12 1  14 1  end" },
+        { "",                         "0; right; 1 12 1  14 1  end" },
+        { "right",                    "0; right; 1 1 12  14 1  end" },
+        { "right,restart",            "0; right; 1 12 1  14 1  end" },
+        { "right,right",              "0; right; 1 1  1  12 14 end" },
+        { "right,right,restart",      "0; right; 1 12 1  14 1  end" },
       };
 
-      DoTests("", "", template, tests);
+      DoTests("PRBG", "", template, tests, DoTestLocationValue);
     }
 
     [TestMethod]
@@ -615,17 +602,17 @@ namespace PuzzLangTest {
         "@(lev):.b....p.r.;" +
         "@(win):;";
       var tests = new string[,] {
-        { "",                               "0; right; 1 14 1  1 1 1 12 1  13 1  end" },
+        { "",                         "0; right; 1 14 1  1 1 1 12 1  13 1  end" },
         // test that non-player movement still happens
-        { "reset,tick",                     "0; right; 1 1 14  1 1 1 12 1  13 1  end" },  // non-player ok
-        //{ "reset,tick",                     "0; right; 1 14 1  1 1 1 12 1  13 1  end" },
-        { "reset,right",                    "0; right; 1 1  14 1 1 1 1 12  13 1  end" },  // move ok
-        { "reset,right",                    "0; right; 1 1  14 1 1 1 1 12  13 1  end" },  // cancelled
-        { "reset,right,up",                 "0; right; 1 1  14 1 1 1 1 12  13 1  end" },  // cancelled
-        { "reset,right,left",               "0; right; 1 1  1 14 1 1 12 1  13 1  end" },  // move ok
+        { "tick",                     "0; right; 1 1 14  1 1 1 12 1  13 1  end" },  // non-player ok
+        //{ "tick",                     "0; right; 1 14 1  1 1 1 12 1  13 1  end" },
+        { "right",                    "0; right; 1 1  14 1 1 1 1 12  13 1  end" },  // move ok
+        { "right",                    "0; right; 1 1  14 1 1 1 1 12  13 1  end" },  // cancelled
+        { "right,up",                 "0; right; 1 1  14 1 1 1 1 12  13 1  end" },  // cancelled
+        { "right,left",               "0; right; 1 1  1 14 1 1 12 1  13 1  end" },  // move ok
       };
 
-      DoTests("", "", template, tests);
+      DoTests("PRBG", "", template, tests, DoTestLocationValue);
     }
 
     [TestMethod]
@@ -639,62 +626,24 @@ namespace PuzzLangTest {
         "@(lev):..b..g..;" +
         "@(win):;";
       var tests = new string[,] {
-        { "reset",                          "0; right; 1 1 14  1 1  15 1 1  end" },
-        { "reset,tick",                     "0; right; 1 1 14  1 1  15 1 1  end" },
-        { "reset,left 0",                   "0; right; 1 1 14  1 1  15 1 1  end" },
-        { "reset,left 1",                   "0; right; 1 1 14  1 1  15 1 1  end" },
-        { "reset,left 2",                   "0; right; 1 1 13  1 1  15 1 1  end" },
-        { "reset,right 0",                  "0; right; 1 1 14  1 1  15 1 1  end" },
-        { "reset,right 1",                  "0; right; 1 1 14  1 1  15 1 1  end" },
-        { "reset,right 2",                  "0; right; 1 1 15  1 1  15 1 1  end" },
-        { "reset,hover 0",                  "0; right; 1 1 14  1 1  15 1 1  end" },
-        { "reset,hover 1",                  "0; right; 1 1 14  1 1  15 1 1  end" },
-        { "reset,hover 2",                  "0; right; 1 1 16  1 1  15 1 1  end" },
-        { "reset,fire1 2",                  "0; right; 1 1 14  1 1  15 1 1  end" },
-        { "reset,fire2 2",                  "0; right; 1 1 14  1 1  15 1 1  end" },
-        { "reset,fire3 2",                  "0; right; 1 1 14  1 1  15 1 1  end" },
-        { "reset,action 2",                 "0; right; 1 1 14  1 1  15 1 1  end" },
+        { "",                         "0; right; 1 1 14  1 1  15 1 1  end" },
+        { "tick",                     "0; right; 1 1 14  1 1  15 1 1  end" },
+        { "left 0",                   "0; right; 1 1 14  1 1  15 1 1  end" },
+        { "left 1",                   "0; right; 1 1 14  1 1  15 1 1  end" },
+        { "left 2",                   "0; right; 1 1 13  1 1  15 1 1  end" },
+        { "right 0",                  "0; right; 1 1 14  1 1  15 1 1  end" },
+        { "right 1",                  "0; right; 1 1 14  1 1  15 1 1  end" },
+        { "right 2",                  "0; right; 1 1 15  1 1  15 1 1  end" },
+        { "hover 0",                  "0; right; 1 1 14  1 1  15 1 1  end" },
+        { "hover 1",                  "0; right; 1 1 14  1 1  15 1 1  end" },
+        { "hover 2",                  "0; right; 1 1 16  1 1  15 1 1  end" },
+        { "fire1 2",                  "0; right; 1 1 14  1 1  15 1 1  end" },
+        { "fire2 2",                  "0; right; 1 1 14  1 1  15 1 1  end" },
+        { "fire3 2",                  "0; right; 1 1 14  1 1  15 1 1  end" },
+        { "action 2",                 "0; right; 1 1 14  1 1  15 1 1  end" },
       };
 
-      DoTests("", "", template, tests);
-    }
-
-    void DoTests(string title, string variations, string template, string[,] tests, [CallerMemberName] string method = "") {
-      foreach (var variation in variations.Split(';')) {
-        var setup = String.Format(template, variation);
-        var testcase = StaticTestData.GetTestCase("PRBG", title + ":" + method, setup);
-        var engine = SetupEngine(testcase);
-        for (int i = 0; i < tests.GetLength(0); i++) {
-          DoTest(engine, tests[i, 0], tests[i, 1], variation);
-        }
-      }
-    }
-
-    void DoTest(GameModel engine, string inputs, string tests, string variation = "") {
-      var msg = $"[{variation}][{inputs}] [{tests}]";
-      engine.AcceptInputs(inputs);
-      var ts = tests.Split(';');
-      var location = ts[0].SafeIntParse();
-      var direction = ts[1].Trim();
-      var objs = ts[2].Trim().Split(null as char[], StringSplitOptions.RemoveEmptyEntries);
-      for (int i = 0; i < objs.Length; i++) {
-        var actual = (!engine.Ok) ? "error"
-          : (engine.EndLevel) ? "done"
-          : (engine.GameOver) ? "over"
-          : (location == null) ? "end"
-          : engine.GetObjects(location.Value).OrderBy(v => v).Join("");
-        Assert.AreEqual(objs[i], actual, msg);
-        location = engine.Step(location ?? 0, direction);
-      }
-    }
-
-    GameModel SetupEngine(StaticTestCase testcase) {
-      var game = new StringReader(testcase.Script);
-      var compiler = Compiler.Compile(testcase.Title, game, Console.Out);
-      Assert.IsTrue(compiler.Success, compiler.Message);
-      compiler.Model.AcceptInputs("level 0");
-      //compiler.Model.LoadLevel(0);
-      return compiler.Model;
+      DoTests("PRBG", "", template, tests, DoTestLocationValue);
     }
   }
 }

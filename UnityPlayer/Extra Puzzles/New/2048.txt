@@ -1,0 +1,205 @@
+title 2048
+author puzzlang
+homepage puzzlang.org
+
+background_color blue
+text_color yellow
+run_rules_on_level_start
+noaction
+========
+OBJECTS
+========
+Background .
+green
+
+edge *
+lightbrown yellow orange red
+0123
+3012
+2301
+1230
+
+temp
+transparent
+
+temp2
+transparent
+
+grid
+grey
+0000000000000000
+0..............0
+0..............0
+0..............0
+0..............0
+0..............0
+0..............0
+0..............0
+0..............0
+0..............0
+0..............0
+0..............0
+0..............0
+0..............0
+0..............0
+0000000000000000
+
+empty
+lightgrey
+
+bg1
+lightbrown
+
+bg2
+yellow
+
+bg3
+orange
+
+bg4
+red
+
+1
+white
+message 2
+
+2 0.8
+white
+message 4
+
+3 0.8
+white
+message 8
+
+4 0.8
+white
+message 16
+
+5 0.7
+white
+message 32
+
+6 0.7
+white
+message 64
+
+7 0.6
+white
+message 128
+
+8 0.6
+white
+message 256
+
+9 0.6
+white
+message 512
+
+a 0.4
+white
+message 1024
+
+b 0.4
+white
+message 2048
+
+=======
+LEGEND
+=======
+
+number = 1 or 2 or 3 or 4 or 5 or 6 or 7 or 8 or 9 or a or b 
+player = number
+rx = 1 or 2 or 3 or 4 or 5 or 6 or 7 or 8 or 9 or a
+bg = bg1 or bg2 or bg3 or bg4
+
+x = grid and empty
+
+=======
+SOUNDS
+=======
+
+================
+COLLISIONLAYERS
+================
+Background
+edge 
+temp bg 
+temp2
+empty number
+grid 
+
+======
+RULES
+======
+
+[ bg ] -> [ ]
+[ > number | empty ] -> [ empty | > number ]
+
+[ > 1 | 1 ] -> [ > temp | 2 ]
+[ > 2 | 2 ] -> [ > temp | 3 ]
+[ > 3 | 3 ] -> [ > temp | 4 ]
+[ > 4 | 4 ] -> [ > temp | 5 ]
+[ > 5 | 5 ] -> [ > temp | 6 ]
+[ > 6 | 6 ] -> [ > temp | 7 ]
+[ > 7 | 7 ] -> [ > temp | 8 ]
+[ > 8 | 8 ] -> [ > temp | 9 ]
+[ > 9 | 9 ] -> [ > temp | a ]
+[ > a | a ] -> [ > temp | b ]
+
+[ > number ] -> [ number ]
+[ number | > temp ] -> [ empty | number ]
+[ > temp ] -> [ empty ]
+
+random [ empty ] -> [ temp temp2 ]
+[ temp ] -> [ random rx ]
+[ temp2 1 ] -> [ 2 ]
+[ temp2 rx ] -> [ 1 ]
+
+[ 1 ] -> [ bg1 1 ]
+[ 2 ] -> [ bg1 2 ]
+[ 3 ] -> [ bg2 3 ]
+[ 4 ] -> [ bg2 4 ]
+[ 5 ] -> [ bg2 5 ]
+[ 6 ] -> [ bg3 6 ]
+[ 7 ] -> [ bg3 7 ]
+[ 8 ] -> [ bg3 8 ]
+[ 9 ] -> [ bg4 9 ]
+[ a ] -> [ bg4 a ]
+[ b ] -> [ bg4 b ]
+
+==============
+WINCONDITIONS
+==============
+
+some b
+ 
+=======
+LEVELS
+=======
+
+message Regular 4x4 puzzle
+
+*......*
+*.xxxx.*
+*.xxxx.*
+*.xxxx.*
+*.xxxx.*
+*......*
+
+message Small 3x3 puzzle
+
+*.....*
+*.xxx.*
+*.xxx.*
+*.xxx.*
+*.....*
+
+message Large 5x5 puzzle
+*.......*
+*.xxxxx.*
+*.xxxxx.*
+*.xxxxx.*
+*.xxxxx.*
+*.xxxxx.*
+*.......*
+
