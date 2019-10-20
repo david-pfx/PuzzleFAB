@@ -97,7 +97,8 @@
     <Error Condition="!Exists('..\packages\Pegasus.4.0.0\build\Pegasus.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\packages\Pegasus.4.0.0\build\Pegasus.targets'))" />
   </Target>
   <PropertyGroup>
-    <PostBuildEvent>copy $(TargetFileName) $(SolutionDir)\UnityPlayer\Assets</PostBuildEvent>
+    <PostBuildEvent>copy $(TargetFileName) $(SolutionDir)\UnityPlayer\Assets
+copy $(TargetDir)\MoonSharp.Interpreter.dll $(SolutionDir)\UnityPlayer\Assets</PostBuildEvent>
   </PropertyGroup>
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.

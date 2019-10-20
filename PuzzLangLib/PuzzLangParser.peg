@@ -204,12 +204,12 @@ comment_line = WS* "==" ( !CC . )* CR? LF
 
 WSC = comment_block* WS* { "" }      // whitespace, optional comment block (discarded)
 EOLC = comment_block* EOLW { "" }    // end of line, optional comment block (discarded)
-EOLW = WS* ( CR? LF / SEMI )        // end of line, no comment block (discarded)
+EOLW = WS* ( CR? LF / NLALT )        // end of line, no comment block (discarded)
      / comment_line
 IDX = !IdChar WS* { "" }            // end of ident possibly followed by WS (discarded)
 WSO =  WS* { "" }                   // optional whitespace
 
-SEMI = ";" WSO
+NLALT = "\\\\" WSO
 EQ = "=" WSO
 LP = "(" WSO
 RP = ")" WSO

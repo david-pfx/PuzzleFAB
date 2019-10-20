@@ -2,6 +2,12 @@ title 2048
 author puzzlang
 homepage puzzlang.org
 
+== This is an implementation of the 2048 game designed to show off Puzzlang extensions
+== Text objects using MESSAGE 
+== Icons of any size with definable scaling factor
+== End of line comments using ==
+== Line breaks using \\
+
 background_color blue
 text_color yellow
 run_rules_on_level_start
@@ -9,24 +15,41 @@ noaction
 ========
 OBJECTS
 ========
-Background .
-green
 
-edge *
-lightbrown yellow orange red
+Background . \\ green \\
+edge *       \\ green \\
+spot @       \\ green \\
+
+over  \\ transparent \\
+live  \\ transparent \\
+orig  \\ transparent \\
+
+empty \\ lightgrey   \\
+bg1   \\ lightbrown  \\
+bg2   \\ yellow      \\
+bg3   \\ orange      \\
+bg4   \\ red         \\
+score \\ transparent \\
+
+1 0.9 \\ white \\ message 2
+2 0.8 \\ white \\ message 4
+3 0.8 \\ white \\ message 8
+4 0.8 \\ white \\ message 16
+5 0.7 \\ white \\ message 32
+6 0.7 \\ white \\ message 64
+7 0.6 \\ white \\ message 128
+8 0.6 \\ white \\ message 256
+9 0.6 \\ white \\ message 512
+a 0.4 \\ white \\ message 1024
+b 0.4 \\ white \\ message 2048
+
+border # \\ lightbrown yellow orange red
 0123
 3012
 2301
 1230
 
-temp
-transparent
-
-temp2
-transparent
-
-grid
-grey
+grid \\ grey
 0000000000000000
 0..............0
 0..............0
@@ -43,129 +66,112 @@ grey
 0..............0
 0..............0
 0000000000000000
-
-empty
-lightgrey
-
-bg1
-lightbrown
-
-bg2
-yellow
-
-bg3
-orange
-
-bg4
-red
-
-1
-white
-message 2
-
-2 0.8
-white
-message 4
-
-3 0.8
-white
-message 8
-
-4 0.8
-white
-message 16
-
-5 0.7
-white
-message 32
-
-6 0.7
-white
-message 64
-
-7 0.6
-white
-message 128
-
-8 0.6
-white
-message 256
-
-9 0.6
-white
-message 512
-
-a 0.4
-white
-message 1024
-
-b 0.4
-white
-message 2048
 
 =======
 LEGEND
 =======
 
 number = 1 or 2 or 3 or 4 or 5 or 6 or 7 or 8 or 9 or a or b 
-player = number
+player = number or spot
 rx = 1 or 2 or 3 or 4 or 5 or 6 or 7 or 8 or 9 or a
 bg = bg1 or bg2 or bg3 or bg4
 
 x = grid and empty
-
-=======
-SOUNDS
-=======
+S = edge and score
 
 ================
 COLLISIONLAYERS
 ================
 Background
-edge 
-temp bg 
-temp2
+edge border spot 
+live bg over
+orig
 empty number
-grid 
+grid score
+
+======
+SOUNDS
+======
 
 ======
 RULES
 ======
 
-[ bg ] -> [ ]
-[ > number | empty ] -> [ empty | > number ]
+== note: rules run at beginning, so >spot is used to filter 
 
-[ > 1 | 1 ] -> [ > temp | 2 ]
-[ > 2 | 2 ] -> [ > temp | 3 ]
-[ > 3 | 3 ] -> [ > temp | 4 ]
-[ > 4 | 4 ] -> [ > temp | 5 ]
-[ > 5 | 5 ] -> [ > temp | 6 ]
-[ > 6 | 6 ] -> [ > temp | 7 ]
-[ > 7 | 7 ] -> [ > temp | 8 ]
-[ > 8 | 8 ] -> [ > temp | 9 ]
-[ > 9 | 9 ] -> [ > temp | a ]
-[ > a | a ] -> [ > temp | b ]
+== check if game over
+[ over ] -> cancel 
+
+== mark all tiles as live (combinable) and original position
+[ > number ] -> [ > number live orig ]
+
+== loop needed to just keep sliding
+startloop
+  == kludge because cannot flag objects directly
+  [ > number live    | empty ] -> [ empty | > number live ]
+  [ > number no live | empty ] -> [ empty | > number no live ]
+
+  == tiles stop at the edge
+  [ > number | edge ] -> [ number | edge ]
+  == combine moving tile with stationary working back from edge if both uncombined
+  [ > 1 live | stationary 1 live ] -> [ empty | 2 ]
+  [ > 2 live | stationary 2 live ] -> [ empty | 3 ]
+  [ > 3 live | stationary 3 live ] -> [ empty | 4 ]
+  [ > 4 live | stationary 4 live ] -> [ empty | 5 ]
+  [ > 5 live | stationary 5 live ] -> [ empty | 6 ]
+  [ > 6 live | stationary 6 live ] -> [ empty | 7 ]
+  [ > 7 live | stationary 7 live ] -> [ empty | 8 ]
+  [ > 8 live | stationary 8 live ] -> [ empty | 9 ]
+  [ > 9 live | stationary 9 live ] -> [ empty | a ]
+  [ > a live | stationary a live ] -> [ empty | b ]
+  == kludge to kill movement just once
+  [ > number | stationary number ] -> [ > number | action number ]
+  [ > number | action number ] -> [ number | number ]
+endloop
 
 [ > number ] -> [ number ]
-[ number | > temp ] -> [ empty | number ]
-[ > temp ] -> [ empty ]
+[ live ] -> [ ]
 
-random [ empty ] -> [ temp temp2 ]
-[ temp ] -> [ random rx ]
-[ temp2 1 ] -> [ 2 ]
-[ temp2 rx ] -> [ 1 ]
+== cancel if all mark on number
+[ > spot ] -> [ > spot live]
+[ live ] [ number no orig ] -> [ ] [ number ]
+[ live ] [ orig no number ] -> [ ] [ ]
+[ live ] -> cancel
+[ orig ] -> [ ]
 
-[ 1 ] -> [ bg1 1 ]
-[ 2 ] -> [ bg1 2 ]
-[ 3 ] -> [ bg2 3 ]
-[ 4 ] -> [ bg2 4 ]
-[ 5 ] -> [ bg2 5 ]
-[ 6 ] -> [ bg3 6 ]
-[ 7 ] -> [ bg3 7 ]
-[ 8 ] -> [ bg3 8 ]
-[ 9 ] -> [ bg4 9 ]
-[ a ] -> [ bg4 a ]
-[ b ] -> [ bg4 b ]
+== random new tile 10:1 2 vs 4 (two on startup)
+random [ empty ] -> [ live ]
+random [ stationary spot ] [ empty ] -> [ spot ] [ live ]
+[ live ] -> [ random 1 1 1 1 1 1 1 1 1 2 ]
+
+== check for can move
+[ spot ] -> [ spot live]
+[ live ] [ empty ] -> [ ] [ empty ]
+[ live ] [ 1 | 1 ] -> [ ] [ 1 | 1 ]
+[ live ] [ 2 | 2 ] -> [ ] [ 2 | 2 ]
+[ live ] [ 3 | 3 ] -> [ ] [ 3 | 3 ]
+[ live ] [ 4 | 4 ] -> [ ] [ 4 | 4 ]
+[ live ] [ 5 | 5 ] -> [ ] [ 5 | 5 ]
+[ live ] [ 6 | 6 ] -> [ ] [ 6 | 6 ]
+[ live ] [ 7 | 7 ] -> [ ] [ 7 | 7 ]
+[ live ] [ 8 | 8 ] -> [ ] [ 8 | 8 ]
+[ live ] [ 9 | 9 ] -> [ ] [ 9 | 9 ]
+[ live ] [ a | a ] -> [ ] [ a | a ]
+[ live ] -> [ over ] message Game Over!
+
+== now add backgrounds
+[ bg ] -> [ ]
+[ 1 ] -> [ grid bg1 1 ]
+[ 2 ] -> [ grid bg1 2 ]
+[ 3 ] -> [ grid bg2 3 ]
+[ 4 ] -> [ grid bg2 4 ]
+[ 5 ] -> [ grid bg2 5 ]
+[ 6 ] -> [ grid bg3 6 ]
+[ 7 ] -> [ grid bg3 7 ]
+[ 8 ] -> [ grid bg3 8 ]
+[ 9 ] -> [ grid bg4 9 ]
+[ a ] -> [ grid bg4 a ]
+[ b ] -> [ grid bg4 b ]
 
 ==============
 WINCONDITIONS
@@ -179,27 +185,46 @@ LEVELS
 
 message Regular 4x4 puzzle
 
-*......*
-*.xxxx.*
-*.xxxx.*
-*.xxxx.*
-*.xxxx.*
-*......*
+#@***S*#
+#*xxxx*#
+#*xxxx*#
+#*xxxx*#
+#*xxxx*#
+#******#
+
+message Test 4x4 puzzle
+
+#@***S*#
+#*11xx*#
+#*xxxx*#
+#*xxxx*#
+#*xxxx*#
+#******#
+
+message Test 4x4 puzzle
+
+#@***S*#
+#*x3x3*#
+#*2424*#
+#*1313*#
+#*2424*#
+#******#
 
 message Small 3x3 puzzle
 
-*.....*
-*.xxx.*
-*.xxx.*
-*.xxx.*
-*.....*
+#@**S*#
+#*xxx*#
+#*xxx*#
+#*xxx*#
+#*****#
 
 message Large 5x5 puzzle
-*.......*
-*.xxxxx.*
-*.xxxxx.*
-*.xxxxx.*
-*.xxxxx.*
-*.xxxxx.*
-*.......*
+
+#@******#
+#*xxxxx*#
+#*xxxxx*#
+#*xxxxx*#
+#*xxxxx*#
+#*xxxxx*#
+#*******#
 
