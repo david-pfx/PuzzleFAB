@@ -37,7 +37,7 @@ public class MainController : MonoBehaviour {
   public string Version;
   public string UserPuzzlesDirectory = "Games";
   public string BuiltinPuzzlesDirectory = "Puzzles";
-  public string StartupScript = "yasban";
+  public string StartupScript = "2048";
   public TextAsset Gists;
   public string GistFile = "Gists.txt";
   public float AgainInterval = 0.25f;
