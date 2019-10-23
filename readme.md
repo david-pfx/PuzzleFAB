@@ -83,7 +83,7 @@ Select or skip a level.
 1. Build a standalone player for a platform of your choice, and run that.
 Enjoy.
 
-1. Add your own games. Just drop the text file into the 'Other Games/User' directory.
+1. Add your own games. Just drop the text file into the Puzzles or Extras directory.
 
 1. Build a standalone player with your game and give it to someone else to enjoy.
 

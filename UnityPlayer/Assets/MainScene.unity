@@ -2698,8 +2698,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 47d0dc2b2408c4f498499c20f8fd0950, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  Version: 1.0.beta.19j21
-  UserPuzzlesDirectory: Extra Puzzles/Advanced,Extra Puzzles/User,Extra Puzzles/New
+  Version: 1.0.beta.19j23
+  UserPuzzlesDirectory: Extras/Advanced,Extras/User,Extras/New
   BuiltinPuzzlesDirectory: Puzzles
   StartupScript: 2048
   Gists: {fileID: 4900000, guid: 36853cb336c1e8d47b07d3273acfc0ce, type: 3}
